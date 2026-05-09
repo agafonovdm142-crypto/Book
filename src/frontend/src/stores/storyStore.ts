@@ -1,9 +1,12 @@
 import { create } from 'zustand';
+import scenes from '../data/scenes';
 
 interface Choice {
   id: string;
   text: string;
   effects?: Record<string, number>;
+  isPremium?: boolean;
+  nextSceneId: string;
 }
 
 interface Scene {
@@ -13,7 +16,6 @@ interface Scene {
   text: string;
   illustrationUrl?: string;
   choices: Choice[];
-  isPremium?: boolean;
 }
 
 interface StoryState {
@@ -39,41 +41,43 @@ export const useStoryStore = create<StoryState>((set, get) => ({
 
   loadScene: async (sceneId: string) => {
     set({ isLoading: true });
-    try {
-      const response = await fetch(`/api/v1/story/scene/${sceneId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
-      const scene: Scene = await response.json();
+    // Simulate API delay for realism
+    await new Promise(r => setTimeout(r, 300));
+    const scene = scenes[sceneId];
+    if (scene) {
       set({
         currentScene: scene,
         history: [...get().history, sceneId],
         isLoading: false,
       });
-    } catch (error) {
-      console.error('Failed to load scene:', error);
+    } else {
+      console.error('Scene not found:', sceneId);
       set({ isLoading: false });
     }
   },
 
   makeChoice: async (choiceId: string) => {
     set({ isLoading: true });
-    try {
-      const response = await fetch('/api/v1/story/choice', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ choiceId }),
-      });
-      const result: Scene = await response.json();
+    await new Promise(r => setTimeout(r, 200));
+    const current = get().currentScene;
+    if (!current) return;
+    const choice = current.choices.find(c => c.id === choiceId);
+    if (choice && scenes[choice.nextSceneId]) {
+      const nextScene = scenes[choice.nextSceneId];
       set({
-        currentScene: result,
-        history: [...get().history, result.sceneId],
+        currentScene: nextScene,
+        history: [...get().history, nextScene.sceneId],
         isLoading: false,
       });
-    } catch (error) {
-      console.error('Failed to make choice:', error);
+    }
+    set({ isLoading: false });
+  },
+
+  addFlag: (flag: string) => {
+    set({ flags: [...get().flags, flag] });
+  },
+}));
+.error('Failed to make choice:', error);
       set({ isLoading: false });
     }
   },

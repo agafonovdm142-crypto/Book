@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Живая Книга — Субботнее утро</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/framer-motion@10.18.0/dist/framer-motion.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body,#root{width:100%;height:100%;overflow:hidden}
+body{font-family:'Inter',sans-serif;background:#FAF6F1;color:#1E1A18}
+.scrollbar-hide::-webkit-scrollbar{display:none}
+.scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.animate-spin-slow{animation:spin 1s linear infinite}
+.animate-float{animation:float 3s ease-in-out infinite}
+.font-serif{font-family:'Playfair Display',serif}
+.text-shadow{text-shadow:0 2px 10px rgba(0,0,0,.3)}
+.gradient-text{background:linear-gradient(135deg,#7B2D4C,#C8956C);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+const { motion, AnimatePresence } = window.Motion;
+
+const scenes = {
+  'scene_01_wake': {
+    sceneId: 'scene_01_wake', location: 'Спальня', time: '08:30',
+    text: `Субботнее утро в твоём городе. Сквозь полуприоткрытые шторы пробивается солнце — золотые лучи полосами ложатся на подушку, на одеяло, на твою руку, лежащую на краю простыни. За окном шумит ветер и слышно чириканье птиц.\n\nТы лежишь одна. В комнате тепло — батарея шипит у окна. Пахнет свежим постельным бельём: лавандовый порошок и чем-то своим, уютным.\n\nТелефон на тумбочке показывает 8:30. Целый день впереди.\n\nТы вчера решила — сегодня позавтракаешь вне дома. Новое кафе открылось неподалёку, «Мокко» называется. Отзывы хвалят круассаны.`,
+    img: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=800&q=80',
+    choices: [
+      { id:'c1_stay', text:'Поваляться ещё 15 минут, наслаждаясь теплом', next:'scene_02_dress' },
+      { id:'c1_rush', text:'Встать сразу — хочу успеть к открытию', next:'scene_02_dress' },
+      { id:'c1_phone', text:'Взять телефон, проверить соцсети', next:'scene_02_dress' },
+    ]
+  },
+  'scene_02_dress': {
+    sceneId: 'scene_02_dress', location: 'Гардероб', time: '09:00',
+    text: `Ты стоишь перед зеркалом в полный рост и думаешь, во что одеться. Завтрак в кафе — ничего особенного, но суббота… почему бы и не нарядиться? Почему бы не надеть то, что обычно хранится на случай «когда-нибудь»?\n\n«Нелепый наряд для завтрака в кафе неподалёку…» — думаешь ты, глядя на своё отражение. — Но пусть будет.`,
+    img: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=800&q=80',
+    choices: [
+      { id:'c2_skirt', text:'Струящаяся юбочка миди + белая рубашка', next:'scene_03_cafe' },
+      { id:'c2_jeans', text:'Облегающие джинсы + топ с открытыми плечами', next:'scene_03_cafe' },
+      { id:'c2_dress', text:'Платье-рубашка хаки, слегка застёгнутое', next:'scene_03_cafe' },
+    ]
+  },
+  'scene_03_cafe': {
+    sceneId: 'scene_03_cafe', location: 'Кафе «Мокко»', time: '09:30',
+    text: `Кафе оказалось чудом.\n\nПанорамные окна от пола до потолка, и солнце заливает всё золотом. Деревянные столы — светлый дуб, на каждом по маленькой вазе с полевыми цветами. На подоконниках — пионы, белые и розовые, и от них пахнет сладковато, летне.\n\nВоздух в кафе — свежемолотый кофе, топлёное масло круассанов, что-то цитрусовое.\n\nТы садишься за столик у окна. Солнце ласково греет щёку.\n\n— Что будете заказывать?\n\nГолос был молодым — почти нежным, с лёгкой хрипотцой.\n\nТы поднимаешь глаза.`,
+    img: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800&q=80',
+    choices: [
+      { id:'c3_look', text:'Продолжить смотреть меню', next:'scene_04_lesha' },
+    ]
+  },
+  'scene_04_lesha': {
+    sceneId: 'scene_04_lesha', location: 'Кафе «Мокко»', time: '09:32',
+    text: `Перед тобой стоит парень. Лет двадцать — такой молодой, что ты сначала думаешь, работает ли он здесь легально. Но потом видишь фартук, и всё встаёт на место.\n\nОн симпатичный — не красавец из журнала, а по-настоящему, живой. Прямолинейная челюсть, слегка растрёпанные светлые волосы, веснушки на носу — редкие, как кто-то брызнул кисточкой. Взгляд хитроватый — он смотрит на тебя не как официант на клиента, а как человек, который что-то заметил.\n\nНа шее виднеется татуировка. Тонкая линия, уходящая под ключицу — похоже, ветвь папоротника.\n\n— Круассан с миндалём и латте, — говоришь ты.\n\n— Лавандовый сироп добавить? — он улыбается, и улыбка кривая, левая сторона поднимается выше правой. — У нас новый. Получается неплохо.`,
+    img: 'https://images.unsplash.com/photo-1445116572660-236099ec97a0?w=800&q=80',
+    choices: [
+      { id:'c4_ignore', text:'Сделать вид, что не заметила татуировку', next:'scene_05_prosecco' },
+      { id:'c4_smile', text:'Слегка улыбнуться, глядя на татуировку', next:'scene_05_prosecco' },
+      { id:'c4_ask', text:'Спросить прямо: «Что за тату?»', next:'scene_05_prosecco' },
+    ]
+  },
+  'scene_05_prosecco': {
+    sceneId: 'scene_05_prosecco', location: 'Кафе «Мокко»', time: '09:45',
+    text: `Заказ пришёл быстро. Круассан — хрустящий, маслянистый, с миндальной пастой внутри. Латте с лавандовым сиропом — нежный, цветочный, как будто ты пьёшь субботу.\n\nМинут через десять он возвращается.\n\nВ руке у него не счёт, а бокал.\n\nТонкий, хрустящий бокал для игристого. В нём — золотистая жидкость, и пузырьки играют, ловя солнечные лучи и рассыпаясь радугой.\n\n— Prosecco. От заведения, — говорит он, ставя бокал перед тобой. — Для самой красивой гостьи этого утра.\n\nУхмылка — та самая, кривая. Он не ждёт ответа. Поправляет фартук и отходит к стойке.`,
+    img: 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f2?w=800&q=80',
+    choices: [
+      { id:'c5_early', text:'«Слишком рано?» — но взять бокал', next:'scene_06_number' },
+      { id:'c5_silent', text:'Сказать спасибо, улыбнуться и отпить молча', next:'scene_06_number' },
+      { id:'c5_laugh', text:'Посмеяться и спросить, часто ли они так радуют гостей', next:'scene_06_number' },
+    ]
+  },
+  'scene_06_number': {
+    sceneId: 'scene_06_number', location: 'Кафе «Мокко»', time: '10:15',
+    text: `Ты допила prosecco — сухой, с лёгкой горчинкой, с пузырьками, которые делают тебя чуть-чуть счастливее с каждым глотком. Заказала второй кофе — уже просто эспрессо, маленький, горький.\n\nКогда пришло время уходить, он принёс счёт на маленьком подносе.\n\nНо вместе со счётом — маленькую салфетку. Белую, чистую. На ней цифры и… сердце. Нарисованное от руки, кривое, по-детски.\n\n— Если что — можно оставить по номеру телефона, — говорит он, не глядя на тебя. — Мой номер. На случай, если захочешь… пообщаться позже.\n\nОн встал и пошёл к стойке, даже не дожидаясь ответа.`,
+    img: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=800&q=80',
+    choices: [
+      { id:'c6_save', text:'Спрятать салфетку в сумочку — решу позже', next:'scene_07_gallery' },
+      { id:'c6_napkin', text:'Написать свой номер и оставить на столе', next:'scene_07_gallery' },
+      { id:'c6_ask', text:'«А если я не позвоню?» — с улыбкой', next:'scene_07_gallery' },
+    ]
+  },
+  'scene_07_gallery': {
+    sceneId: 'scene_07_gallery', location: 'Галерея «Арт-Пространство»', time: '11:30',
+    text: `Ты вышла из кафе с лёгким головокружением — prosecco на тощак, солнце, странный, трепетный настрой. В кармане сумочки салфетка с номером. Ты ещё не решила, позвонишь ли.\n\nНо сейчас — галерея.\n\n«Арт-Пространство» — ты видела афишу на столбе у метро. Выставка молодых художников, последний день. Внутри оказалось… прохладно. Белые стены, высокие потолки, скрип деревянного паркета под ногами. Картины висят на стенах — абстракции, портреты, что-то между сном и реальностью.\n\nТы стоишь перед полотном — на нём женщина, танцующая в огне, и не горит. Ты пытаешься понять, что художник хотел сказать.\n\n— Она горит каждый день, — говорит голос позади. — И каждый день выходит невредимой. Думаю, автор верит в чудеса.`,
+    img: 'https://images.unsplash.com/photo-1531913764164-f85c52e6e654?w=800&q=80',
+    choices: [
+      { id:'c7_turn', text:'Обернуться', next:'scene_08_max' },
+      { id:'c7_keep', text:'Не оборачиваться, ответить в стену', next:'scene_08_max' },
+    ]
+  },
+  'scene_08_max': {
+    sceneId: 'scene_08_max', location: 'Галерея «Арт-Пространство»', time: '11:35',
+    text: `Ты оборачиваешься.\n\nПеред тобой мужчина. Тридцать пять, может, чуть больше — возраст не в лице, а в том, как он стоит. Спокойно, так, будто земля под ногами ровная только потому, что он решил, что так будет.\n\nТёмные волосы, слегка седые на висках. Глаза карие, с тёплым оттенком, и они смотрят на тебя не в упор, а как будто издалека — изучают, оценивают, думают.\n\n— Макс, — представляется он, протягивая руку. — Искусствовед. Или куратор. Зависит от дня недели.\n\nЕго рука — тёплая, сухая, сильная.\n\n— А вы верите в чудеса? — спрашиваешь ты.\n\n— Я пришёл сюда вместо совещания, — отвечает он. — Значит, наверное, да.\n\n— Пойдёмте, покажу кое-что. Не то что все остальные смотрят.`,
+    img: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=800&q=80',
+    choices: [
+      { id:'c8_go', text:'Пойти с ним', next:'scene_09_hall' },
+      { id:'c8_caution', text:'«А если я предпочитаю то, что смотрят все?»', next:'scene_09_hall' },
+    ]
+  },
+  'scene_09_hall': {
+    sceneId: 'scene_09_hall', location: 'Галерея — закрытый зал', time: '11:50',
+    text: `Он ведёт тебя в конец коридора, к двери с табличкой «Закрыто — реставрация». Но дверь приоткрыта, и Макс легко толкает её.\n\nВнутри — тусклый свет, одна картина на мольберте, полуугоревшая. На ней — обнажённая женщина, спина к зрителю, смотрящая в окно.\n\n— Она принадлежала известному коллекционеру. Он умер три месяца назад, — говорит Макс. — Картина пропала на сорок лет. И вдруг появилась на аукционе. Никто не знал, что она существовала.\n\nТы смотришь на холст. Женщина на нём стоит у окна, и свет ложится на её спину так, что кажется — она светится изнутри.\n\n— Почему вы показываете это мне?\n\n— Потому что вы посмотрели на «горящую танцовщицу» не так, как остальные. Вы не пытались понять. Вы просто… чувствовали.\n\nОн поворачивается к тебе. В полутьме глаза кажутся темнее.\n\n— Хотите посмотреть остальное?`,
+    img: 'https://images.unsplash.com/photo-1578321272176-b7bbc0679853?w=800&q=80',
+    choices: [
+      { id:'c9_yes', text:'Да, хочу', next:'scene_10_ending_choice' },
+      { id:'c9_hesitate', text:'«Это закрытый зал? Или личное приглашение?»', next:'scene_10_ending_choice' },
+    ]
+  },
+  'scene_10_ending_choice': {
+    sceneId: 'scene_10_ending_choice', location: 'Галерея «Арт-Пространство»', time: '12:00',
+    text: `Ты стоишь в полутьме закрытого зала, и воздух между вами густой — как перед грозой, как перед первым поцелуем, как перед чем-то, что изменит всё.\n\nМакс ждёт. Не торопит. Он умеет ждать — это видно.\n\nА в сумочке у тебя — салфетка с номером молодого официанта. Лёша. С папоротником на шее и prosecco в 9 утра.\n\nСегодняшнее утро подарило тебе двух мужчин. Один — молодой, дерзкий. Другой — зрелый, спокойный.\n\nКого выберешь? Или, может, выберешь себя?\n\n*Это был первый день. История только начинается.*`,
+    img: 'https://images.unsplash.com/photo-1518998053901-5348d3961a04?w=800&q=80',
+    choices: [
+      { id:'c10_lesha', text:'Позвонить Лёше. Суббота только началась.', next:'scene_ending_lesha' },
+      { id:'c10_max', text:'Остаться с Максом. В закрытом зале.', next:'scene_ending_max' },
+      { id:'c10_self', text:'Уйти одной. Сегодня — мой день.', next:'scene_ending_self' },
+    ]
+  },
+  'scene_ending_lesha': {
+    sceneId: 'scene_ending_lesha', location: 'Улица', time: '12:15',
+    text: `Ты выходишь из галереи и сразу достаёшь салфетку. Пальцы слегка трясутся — не от страха, от предвкушения.\n\nНабираешь номер. Гудок… гудок…\n\n— Алло? — голос улыбается. Он знает.\n\n— Это та, что в юбке с рассвета, — говоришь ты.\n\n— Знаю. Ждал.\n\n— Уже?\n\n— С того момента, как ты вошла в кафе.\n\nТы смеёшься, и солнце кажется ярче.\n\n*Продолжение следует…*`,
+    img: 'https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?w=800&q=80',
+    choices: [
+      { id:'restart', text:'Прочитать заново', next:'scene_01_wake' },
+    ]
+  },
+  'scene_ending_max': {
+    sceneId: 'scene_ending_max', location: 'Галерея — закрытый зал', time: '12:15',
+    text: `Ты не уходишь.\n\nМакс кладёт руку тебе на поясницу — легко, как будто проверяя, позволишь ли. Ты позволяешь.\n\n— У меня есть ключ от крыши, — говорит он тихо. — Там видно весь город.\n\n— Это приглашение?\n\n— Это предложение, от которого можно отказаться. Но не стоит.\n\n*Продолжение следует…*`,
+    img: 'https://images.unsplash.com/photo-1578926375605-eaf7559b94cf?w=800&q=80',
+    choices: [
+      { id:'restart', text:'Прочитать заново', next:'scene_01_wake' },
+    ]
+  },
+  'scene_ending_self': {
+    sceneId: 'scene_ending_self', location: 'Город', time: '12:15',
+    text: `Ты выходишь из галереи одна.\n\nНомер Лёши — в сумочке. Макс — в закрытом зале. Оба будут ждать. Оба — возможности. Но не сегодня.\n\nСегодня ты идёшь по солнечным улицам, в наряде, который выбрала сама, с prosecco в крови и историей, которую никому не расскажешь.\n\nТы не выбрала мужчину. Ты выбрала себя. И это — тоже любовь.\n\n*Конец первой главы.*`,
+    img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800&q=80',
+    choices: [
+      { id:'restart', text:'Прочитать заново', next:'scene_01_wake' },
+    ]
+  },
+};
+
+function LoadingScreen() {
+  return (
+    <div style={{height:'100vh',width:'100%',background:'#FAF6F1',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column'}}>
+      <div style={{width:48,height:48,border:'4px solid #7B2D4C',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 1s linear infinite'}}></div>
+      <p style={{marginTop:16,color:'#8A8580',fontSize:14}}>Загружаем историю...</p>
+    </div>
+  );
+}
+
+function StoryReader() {
+  const [sceneId, setSceneId] = useState('scene_01_wake');
+  const [textRevealed, setTextRevealed] = useState(false);
+  const [showChoices, setShowChoices] = useState(false);
+  const [selectedChoice, setSelectedChoice] = useState(null);
+  const [history, setHistory] = useState([]);
+  const textRef = useRef(null);
+
+  const scene = scenes[sceneId];
+
+  useEffect(() => {
+    setTextRevealed(false);
+    setShowChoices(false);
+    setSelectedChoice(null);
+    const t1 = setTimeout(() => setTextRevealed(true), 300);
+    const t2 = setTimeout(() => setShowChoices(true), scene ? scene.text.length * 8 + 500 : 1000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [sceneId]);
+
+  if (!scene) return <LoadingScreen />;
+
+  const handleChoice = (choice) => {
+    setSelectedChoice(choice.id);
+    setHistory([...history, scene.sceneId]);
+    setTimeout(() => {
+      setSceneId(choice.next);
+    }, 300);
+  };
+
+  const paragraphs = scene.text.split('\n\n');
+
+  return (
+    <div style={{height:'100vh',width:'100%',background:'linear-gradient(to bottom,#FAF6F1,#F5E6D8)',display:'flex',flexDirection:'column',overflow:'hidden',position:'relative'}}>
+      
+      {/* Progress bar */}
+      <div style={{height:3,width:'100%',background:'#E8E4E0',position:'fixed',top:0,zIndex:50}}>
+        <motion.div
+          style={{height:'100%',background:'linear-gradient(to right,#7B2D4C,#C8956C)'}}
+          initial={{width:'0%'}}
+          animate={{width:`${Math.min((history.length/12)*100,100)}%`}}
+          transition={{duration:0.5}}
+        />
+      </div>
+
+      {/* Illustration */}
+      <div style={{position:'relative',height:'45vh',width:'100%',flexShrink:0}}>
+        <motion.img
+          key={scene.img}
+          src={scene.img}
+          alt={scene.location}
+          style={{width:'100%',height:'100%',objectFit:'cover'}}
+          initial={{opacity:0,scale:1.05}}
+          animate={{opacity:1,scale:1}}
+          transition={{duration:0.6}}
+        />
+        <div style={{position:'absolute',inset:0,background:'linear-gradient(to bottom,transparent,transparent,#FAF6F1)'}} />
+        
+        {/* Scene labels */}
+        <div style={{position:'absolute',top:16,left:16,display:'flex',gap:8}}>
+          <span style={{fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:2,color:'#8A8580',background:'rgba(255,255,255,0.85)',backdropFilter:'blur(8px)',padding:'4px 12px',borderRadius:20}}>{scene.location}</span>
+          <span style={{fontSize:11,fontWeight:600,color:'#C8956C',background:'rgba(255,255,255,0.85)',backdropFilter:'blur(8px)',padding:'4px 12px',borderRadius:20}}>{scene.time}</span>
+        </div>
+      </div>
+
+      {/* Text area */}
+      <div ref={textRef} style={{flex:1,overflowY:'auto',padding:'16px 24px 80px'}} className="scrollbar-hide">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={scene.sceneId}
+            initial={{opacity:0,y:20}}
+            animate={{opacity:textRevealed?1:0,y:textRevealed?0:20}}
+            transition={{duration:0.5,delay:0.2}}
+            style={{maxWidth:560,margin:'0 auto'}}
+          >
+            {paragraphs.map((p,i) => (
+              <motion.p
+                key={i}
+                initial={{opacity:0}}
+                animate={{opacity:1}}
+                transition={{delay:i*0.15}}
+                style={{
+                  marginBottom:16,
+                  lineHeight:1.7,
+                  fontSize: p.startsWith('«') ? 17 : 15,
+                  fontFamily: p.startsWith('«') ? "'Playfair Display',serif" : "'Inter',sans-serif",
+                  fontStyle: p.startsWith('«') ? 'italic' : 'normal',
+                  color: p.startsWith('«') ? '#7B2D4C' : '#1E1A18',
+                }}
+              >
+                {p}
+              </motion.p>
+            ))}
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Choices */}
+        <AnimatePresence>
+          {showChoices && scene.choices.length > 0 && (
+            <motion.div
+              initial={{opacity:0,y:30}}
+              animate={{opacity:1,y:0}}
+              transition={{duration:0.4}}
+              style={{maxWidth:560,margin:'24px auto 40px',display:'flex',flexDirection:'column',gap:12}}
+            >
+              {scene.choices.map((choice, idx) => (
+                <motion.button
+                  key={choice.id}
+                  initial={{opacity:0,x:-20}}
+                  animate={{opacity:1,x:0}}
+                  transition={{delay:idx*0.1}}
+                  onClick={() => handleChoice(choice)}
+                  whileHover={{scale:1.02}}
+                  whileTap={{scale:0.98}}
+                  style={{
+                    padding:'16px 20px',
+                    borderRadius:16,
+                    border:'2px solid',
+                    borderColor: selectedChoice===choice.id ? '#7B2D4C' : 'rgba(123,45,76,0.15)',
+                    background: selectedChoice===choice.id 
+                      ? 'linear-gradient(135deg,#7B2D4C,#9B3D5C)' 
+                      : 'rgba(255,255,255,0.7)',
+                    color: selectedChoice===choice.id ? '#fff' : '#1E1A18',
+                    cursor:'pointer',
+                    textAlign:'left',
+                    fontSize:15,
+                    fontFamily:"'Inter',sans-serif",
+                    lineHeight:1.5,
+                    backdropFilter:'blur(8px)',
+                    transition:'all 0.2s',
+                    boxShadow: selectedChoice===choice.id ? '0 4px 20px rgba(123,45,76,0.3)' : '0 2px 8px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <span style={{fontWeight:600,marginRight:8,opacity:0.6}}>{String.fromCharCode(65+idx)}.</span>
+                  {choice.text}
+                </motion.button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Bottom gradient */}
+      <div style={{position:'fixed',bottom:0,left:0,right:0,height:60,background:'linear-gradient(to top,#F5E6D8,transparent)',pointerEvents:'none',zIndex:10}} />
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<StoryReader />);
+</script>
+</body>
+</html>
