@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Живая Книга — Субботнее утро v2</title>
+<title>Живая Книга v3 — Субботнее утро</title>
 <link rel="manifest" href="manifest.json?v=2">
 <meta name="version" content="2.0">
 <meta name="theme-color" content="#7B2D4C">
@@ -42,12 +42,12 @@ html,body,#app{width:100%;height:100%;overflow:hidden;font-family:'Inter',sans-s
 /* Text area */
 .text-section{flex:1;overflow-y:auto;padding:16px 24px 100px}
 .text-content{max-width:560px;margin:0 auto}
-.paragraph{margin-bottom:14px;line-height:1.7;font-size:15px;animation:fadeIn .4s ease forwards;opacity:0}
+.paragraph{margin-bottom:14px;line-height:1.7;font-size:15px;animation:fadeIn .4s ease forwards;opacity:1}
 .paragraph.dialogue{font-family:'Playfair Display',serif;font-style:italic;font-size:16px;color:#7B2D4C}
 
 /* Choices */
 .choices-container{max-width:560px;margin:28px auto 40px;display:flex;flex-direction:column;gap:12px;animation:fadeInUp .4s ease}
-.choice-btn{padding:16px 20px;border-radius:16px;border:2px solid rgba(123,45,76,.15);background:rgba(255,255,255,.75);color:#1E1A18;cursor:pointer;text-align:left;font-size:15px;font-family:'Inter',sans-serif;line-height:1.5;backdrop-filter:blur(8px);transition:all .2s;box-shadow:0 2px 8px rgba(0,0,0,.04);animation:slideRight .3s ease forwards;opacity:0}
+.choice-btn{padding:16px 20px;border-radius:16px;border:2px solid rgba(123,45,76,.15);background:rgba(255,255,255,.75);color:#1E1A18;cursor:pointer;text-align:left;font-size:15px;font-family:'Inter',sans-serif;line-height:1.5;backdrop-filter:blur(8px);transition:all .2s;box-shadow:0 2px 8px rgba(0,0,0,.04);animation:slideRight .3s ease forwards;opacity:1}
 .choice-btn:hover{transform:scale(1.02);border-color:#7B2D4C;box-shadow:0 4px 20px rgba(123,45,76,.2)}
 .choice-btn:active{transform:scale(.98)}
 .choice-btn.selected{background:linear-gradient(135deg,#7B2D4C,#9B3D5C);color:#fff;border-color:#7B2D4C;box-shadow:0 4px 20px rgba(123,45,76,.3)}
@@ -80,7 +80,23 @@ const scenes = {
     choices: [
       { text:'Поваляться ещё 15 минут, наслаждаясь теплом', next:'scene_02_dress' },
       { text:'Встать сразу — хочу успеть к открытию', next:'scene_02_dress' },
-      { text:'Взять телефон, проверить соцсети', next:'scene_02_dress' },
+      { text:'Взять телефон, проверить соцсети', next:'scene_02a_social' },
+    ]
+  },
+  'scene_02a_social': {
+    location: 'Спальня', time: '08:45',
+    text: `Ты берёшь телефон. Экран яркий в полумраке комнаты — щурясь, ты открываешь Instagram.
+
+Stories листаются однообразно: кофе, завтраки, кто-то на пробежке, кто-то с котиком. Ты почти откладываешь телефон — но тут тормозишь пальцем.
+
+Алина. Твоя соседка по комнате с универа, которую ты не видела полгода. Она стоит в огромном промышленном зале, за спиной — бетонные стены и холсты. Руки в краске. Подпись: *«Живые картины. Художники рисуют прямо при вас. «Творческий кластер «Гараж». Последний день»*.
+
+Ты замираешь. Что-то в этом кадде — небрежность, свобода, запах краски, который ты чувствуешь даже через экран — цепляет. Алина всегда знала толк в событиях.
+
+Но сначала — себя. Зеркало, шкаф, и то бельё, которое никто не увидит, но которое сделает этот день другим.`,
+    img: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&q=80',
+    choices: [
+      { text:'Продолжить...', next:'scene_02_dress' },
     ]
   },
   'scene_02_dress': {
