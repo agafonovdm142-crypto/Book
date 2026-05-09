@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String?   @map("password_hash")
+  googleId      String?   @unique @map("google_id")
+  appleId       String?   @unique @map("apple_id")
+  name          String?
+  ageVerified   Boolean   @default(false) @map("age_verified")
+  verifiedAt    DateTime? @map("verified_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  profile       Profile?
+  progress      StoryProgress?
+  subscriptions Subscription[]
+  choices       UserChoice[]
+
+  @@map("users")
+}
+
+model Profile {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  heroName        String   @default("Алиса") @map("hero_name")
+  city            String   @default("Москва")
+  romanticism     Int      @default(5)
+  adventure       Int      @default(5)
+  dominance       Int      @default(5)
+  sensuality      Int      @default(5)
+  mystery         Int      @default(5)
+  confidence      Int      @default(5)
+  boldness        Int      @default(5)
+  intimacy        Int      @default(5)
+  seduction       Int      @default(5)
+  submission      Int      @default(5)
+  passion         Int      @default(5)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Story {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  chapter     Int
+  published   Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  scenes Scene[]
+
+  @@map("stories")
+}
+
+model Scene {
+  id           String   @id @default(uuid())
+  storyId      String   @map("story_id")
+  sceneId      String   @unique @map("scene_id")
+  type         String   @default("interactive")
+  location     String?
+  time         String?
+  textDefault  String   @map("text_default")
+  textRomantic String?  @map("text_romantic")
+  textDominant String?  @map("text_dominant")
+  illustrationPrompt String? @map("illustration_prompt")
+  isPremium    Boolean  @default(false) @map("is_premium")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  story   Story    @relation(fields: [storyId], references: [id])
+  choices Choice[]
+
+  @@map("scenes")
+}
+
+model Choice {
+  id          String   @id @default(uuid())
+  sceneId     String   @map("scene_id")
+  choiceId    String   @map("choice_id")
+  text        String
+  effects     Json
+  nextSceneId String   @map("next_scene_id")
+  condition   Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  scene Scene @relation(fields: [sceneId], references: [id])
+  userChoices UserChoice[]
+
+  @@map("choices")
+}
+
+model StoryProgress {
+  id          String   @id @default(uuid())
+  userId      String   @unique @map("user_id")
+  currentSceneId String @map("current_scene_id")
+  flags       String[] @default([])
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("story_progress")
+}
+
+model UserChoice {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  choiceId  String   @map("choice_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id])
+  choice Choice @relation(fields: [choiceId], references: [id])
+
+  @@unique([userId, choiceId])
+  @@map("user_choices")
+}
+
+model Subscription {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tier      String   @default("free")
+  status    String   @default("active")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("subscriptions")
+}

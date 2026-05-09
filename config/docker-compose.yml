@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: jk-postgres
+    environment:
+      POSTGRES_USER: jk_user
+      POSTGRES_PASSWORD: jk_password
+      POSTGRES_DB: jivaya_kniga
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jk_user -d jivaya_kniga"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: jk-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  backend:
+    build: ./src/backend
+    container_name: jk-backend
+    environment:
+      - DATABASE_URL=postgresql://jk_user:jk_password@postgres:5432/jivaya_kniga
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./src/backend:/app
+      - /app/node_modules
+
+  frontend:
+    build: ./src/frontend
+    container_name: jk-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3001
+    volumes:
+      - ./src/frontend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:
+  redis_data:
