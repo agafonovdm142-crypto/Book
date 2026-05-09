@@ -15,7 +15,7 @@ from telegram.ext import (
 )
 
 # === CONFIG ===
-TOKEN = os.getenv("BOT_TOKEN", "YOUR_TOKEN_HERE")
+TOKEN = os.getenv("BOT_TOKEN", "")
 READER_URL = "https://kt7ussahgizfm.kimi.page"
 ADMIN_ID = None  # Set your Telegram ID for admin notifications
 
