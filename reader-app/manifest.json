@@ -1,0 +1,22 @@
+{
+  "name": "Живая Книга",
+  "short_name": "Живая Книга",
+  "description": "Интерактивные романы для женщин. Выбирай, кого любить.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF6F1",
+  "theme_color": "#7B2D4C",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "images/scene-lingerie.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "images/scene-lingerie.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}
