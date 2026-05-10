@@ -16,16 +16,21 @@ book/
 │   ├── 001-vlastnyy.md    ← идея: властный мужчина
 │   ├── 002-monetizaciya.md← идея: монетизация
 │   └── 003-povtornye-geroi.md ← идея: повторные встречи
+├── analytics/             ← АНАЛИТИКА (см. ниже)
+│   └── README.md          ← описание метрик и доступа
 ├── stories/               ← все главы
 │   ├── 01-subbotnee-utro/
 │   ├── 02-vecher-s-maksom/
 │   ├── 03-noch-s-leshey/
 │   ├── 04-masterskaya-artema/
 │   ├── 05-voskresene/
-│   └── 06-vlastnyy/       ← новая глава (в работе)
-├── bot/                   ← Telegram webhook
-│   ├── main.py
+│   └── 06-vlastnyy/
+├── bot/                   ← Telegram бот + аналитика
+│   ├── main.py            ← webhook + /stats с паролем
 │   └── requirements.txt
+├── analytics.js           ← модуль сбора данных (все главы)
+├── stats.html             ← ДАШБОРД статистики (веб)
+├── privacy.html           ← политика конфиденциальности
 ├── index.html             ← обложка книги
 ├── requirements.txt       ← для Render
 └── Procfile               ← команда запуска
@@ -47,6 +52,23 @@ book/
 | 002 | Монетизация (фримиум, BookTok, мерч) | 2026-05-10 | new |
 | 003 | Повторные встречи с героями | 2026-05-10 | new |
 
+## Аналитика (NEW)
+
+### Дашборд (веб)
+- **URL:** `https://kt7ussahgizfm.kimi.page/stats.html`
+- Таблица: просмотры, лайки, дочитавшие по каждой главе
+- Обновляется автоматически каждую минуту
+
+### Telegram-бот (с паролем)
+- **Бот:** `@Jivaya_kniga_bot`
+- **Команда:** `/stats`
+- **Пароль:** `211114` (только владелец)
+- Показывает ту же статистику, что и дашборд
+
+### API напрямую
+- `https://api.countapi.xyz/get/zhivaya-kniga/{chapter}_{metric}`
+- `{chapter}` = 01..06, `{metric}` = views | liked | completed
+
 ## Правила работы
 
 1. **Каждый выбор = уникальная ветка.** Нет одинаковых путей.
@@ -60,10 +82,14 @@ book/
 | Что нужно | Куда смотреть |
 |---|---|
 | Идеи для сценариев | `ideas/` |
+| Аналитика и метрики | `analytics/` + `stats.html` |
 | Готовые главы | `stories/XX-название/` |
 | Код читалки | `stories/XX-название/index.html` |
 | AI-изображения | `stories/XX-название/img/` |
 | Telegram бот | `bot/` |
+| Бренд и маркетинг | `BRAND-BOOK.md`, `MARKETING.md` |
+| Робокасса | `ROBOKASSA-GUIDE.md` |
+| Приватность | `privacy.html` |
 
 ## Git
 

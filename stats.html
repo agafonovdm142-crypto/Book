@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Статистика | Живая Книга</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Montserrat:wght@300;400;500;600&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Montserrat',sans-serif;background:#1a1410;color:#f5ede4;min-height:100vh}
+  .container{max-width:900px;margin:0 auto;padding:30px 20px 60px}
+  .header{text-align:center;padding:30px 0 25px;border-bottom:1px solid rgba(212,175,137,0.2);margin-bottom:30px}
+  .header h1{font-family:'Cormorant Garamond',serif;font-size:2.2em;color:#d4af89;font-weight:400}
+  .header p{color:#a89080;font-size:0.85em;margin-top:8px}
+  .refresh-btn{background:#d4af89;color:#1a1410;border:none;padding:10px 24px;border-radius:6px;cursor:pointer;font-family:'Montserrat',sans-serif;font-size:0.9em;margin:20px auto;display:block;transition:opacity 0.2s}
+  .refresh-btn:hover{opacity:0.85}
+  table{width:100%;border-collapse:collapse;margin-top:20px;font-size:0.95em}
+  th{background:rgba(212,175,137,0.1);color:#d4af89;padding:14px 16px;text-align:left;font-weight:500;border-bottom:2px solid rgba(212,175,137,0.3)}
+  td{padding:14px 16px;border-bottom:1px solid rgba(212,175,137,0.1);color:#c4a882}
+  tr:hover td{background:rgba(212,175,137,0.04)}
+  .num{font-family:'Cormorant Garamond',serif;font-size:1.3em;color:#d4af89;width:40px}
+  .title{font-weight:500;color:#f5ede4}
+  .stat{font-weight:600;color:#f5ede4;font-size:1.1em}
+  .stat-likes{color:#e74c3c}
+  .stat-views{color:#d4af89}
+  .stat-done{color:#4CAF50}
+  .loading{color:#a89080;text-align:center;padding:40px;font-style:italic}
+  .error{color:#e74c3c;text-align:center;padding:20px}
+  .total-row td{border-top:2px solid rgba(212,175,137,0.3);font-weight:600;background:rgba(212,175,137,0.06)}
+  .nav{text-align:center;margin-bottom:20px}
+  .nav a{color:#d4af89;text-decoration:none;font-size:0.85em}
+  .timestamp{text-align:center;color:#a89080;font-size:0.8em;margin-top:20px}
+  .api-links{background:rgba(212,175,137,0.04);border:1px solid rgba(212,175,137,0.15);border-radius:8px;padding:20px;margin-top:30px}
+  .api-links h3{font-family:'Cormorant Garamond',serif;color:#d4af89;font-size:1.2em;margin-bottom:12px}
+  .api-links code{background:rgba(212,175,137,0.1);padding:2px 8px;border-radius:3px;font-size:0.85em;color:#d4af89}
+  .api-links p{color:#a89080;font-size:0.85em;margin-bottom:8px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="nav">
+    <a href="index.html">&larr; На главную</a>
+  </div>
+  
+  <div class="header">
+    <h1>Статистика Живой Книги</h1>
+    <p>Аналитика в реальном времени — обновляется автоматически</p>
+    <button class="refresh-btn" onclick="loadStats()">Обновить данные</button>
+  </div>
+  
+  <div id="tableContainer">
+    <div class="loading">Загрузка данных...</div>
+  </div>
+  
+  <p class="timestamp" id="timestamp"></p>
+  
+  <div class="api-links">
+    <h3>API для разработчиков</h3>
+    <p>Счётчики работают через <code>countapi.xyz</code> — бесплатно и без регистрации.</p>
+    <p>Формат URL: <code>https://api.countapi.xyz/get/zhivaya-kniga/{chapter}_{metric}</code></p>
+    <p>Где <code>chapter</code> = 01..06, <code>metric</code> = views | liked | completed</p>
+    <p>Пример: <code>https://api.countapi.xyz/get/zhivaya-kniga/01_views</code></p>
+  </div>
+</div>
+
+<script>
+const chapters = [
+  {id:'01', title:'Субботнее утро', scenes:103},
+  {id:'02', title:'Вечер с Максом', scenes:19},
+  {id:'03', title:'Ночь с Лёшей', scenes:15},
+  {id:'04', title:'Мастерская Артёма', scenes:20},
+  {id:'05', title:'Воскресенье — Финал', scenes:14},
+  {id:'06', title:'Властный — Перчинка', scenes:23},
+];
+const NS = 'zhivaya-kniga';
+
+function fetchCount(key) {
+  return fetch('https://api.countapi.xyz/get/' + NS + '/' + key)
+    .then(function(r) { return r.json(); })
+    .then(function(d) { return d.value; })
+    .catch(function() { return 0; });
+}
+
+async function loadStats() {
+  var container = document.getElementById('tableContainer');
+  container.innerHTML = '<div class="loading">Загрузка данных...</div>';
+  
+  var rows = [];
+  var totalViews = 0, totalLikes = 0, totalDone = 0;
+  
+  for (var i = 0; i < chapters.length; i++) {
+    var ch = chapters[i];
+    var views = await fetchCount(ch.id + '_views');
+    var likes = await fetchCount(ch.id + '_liked');
+    var done = await fetchCount(ch.id + '_completed');
+    
+    totalViews += views;
+    totalLikes += likes;
+    totalDone += done;
+    
+    var ctr = views > 0 ? Math.round((done / views) * 100) : 0;
+    var likeRate = views > 0 ? Math.round((likes / views) * 100) : 0;
+    
+    rows.push({
+      num: ch.id === '01' ? 'I' : ch.id === '02' ? 'II' : ch.id === '03' ? 'III' : ch.id === '04' ? 'IV' : ch.id === '05' ? 'V' : 'VI',
+      title: ch.title,
+      scenes: ch.scenes,
+      views: views,
+      likes: likes,
+      done: done,
+      ctr: ctr,
+      likeRate: likeRate
+    });
+  }
+  
+  var html = '<table>';
+  html += '<tr><th>№</th><th>Глава</th><th>Сцен</th><th class="stat-views">Просмотры</th><th class="stat-likes">❤️ Лайки</th><th class="stat-done">✓ Дочитали</th><th>Конверсия</th><th>Лайков-rate</th></tr>';
+  
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    html += '<tr>';
+    html += '<td class="num">' + r.num + '</td>';
+    html += '<td class="title">' + r.title + '</td>';
+    html += '<td>' + r.scenes + '</td>';
+    html += '<td class="stat stat-views">' + r.views + '</td>';
+    html += '<td class="stat stat-likes">' + r.likes + '</td>';
+    html += '<td class="stat stat-done">' + r.done + '</td>';
+    html += '<td>' + r.ctr + '%</td>';
+    html += '<td>' + r.likeRate + '%</td>';
+    html += '</tr>';
+  }
+  
+  // Total row
+  var totalCtr = totalViews > 0 ? Math.round((totalDone / totalViews) * 100) : 0;
+  var totalLikeRate = totalViews > 0 ? Math.round((totalLikes / totalViews) * 100) : 0;
+  html += '<tr class="total-row">';
+  html += '<td></td><td class="title">ИТОГО</td><td>194</td>';
+  html += '<td class="stat stat-views">' + totalViews + '</td>';
+  html += '<td class="stat stat-likes">' + totalLikes + '</td>';
+  html += '<td class="stat stat-done">' + totalDone + '</td>';
+  html += '<td>' + totalCtr + '%</td>';
+  html += '<td>' + totalLikeRate + '%</td>';
+  html += '</tr>';
+  
+  html += '</table>';
+  container.innerHTML = html;
+  
+  document.getElementById('timestamp').textContent = 'Обновлено: ' + new Date().toLocaleString('ru-RU');
+}
+
+// Load on open
+loadStats();
+// Auto-refresh every 60 seconds
+setInterval(loadStats, 60000);
+</script>
+</body>
+</html>
