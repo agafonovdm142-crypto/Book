@@ -148,7 +148,7 @@ def webhook():
     chat_id = msg["chat"]["id"]
     text = msg.get("text", "")
     
-    # /start
+    # /start (with optional password)
     if text == "/start":
         send_message(
             chat_id,
@@ -157,6 +157,17 @@ def webhook():
             "Выбери главу:",
             make_chapter_keyboard()
         )
+        return jsonify({"ok": True})
+    
+    # /start with password → redirect to stats
+    if text.startswith("/start "):
+        provided = text[7:].strip()
+        if provided == ADMIN_PASSWORD:
+            authenticated_users.add(chat_id)
+            send_message(chat_id, "✅ *Пароль верный!*\n\nЗагружаю статистику...")
+            show_stats(chat_id)
+        else:
+            send_message(chat_id, "📖 Выбери главу:", make_chapter_keyboard())
         return jsonify({"ok": True})
     
     # /help
@@ -174,33 +185,45 @@ def webhook():
     # /stats — password protected
     if text == "/stats":
         if chat_id in authenticated_users:
-            # Already authenticated, show stats
             show_stats(chat_id)
         else:
             send_message(
                 chat_id,
                 "🔐 *Доступ к аналитике*\n\n"
-                "Введите пароль после команды:\n"
-                "`/stats ПАРОЛЬ`",
+                "Напиши команду с паролем:\n"
+                "`/stats 211114`\n\n"
+                "Или просто отправь пароль ответным сообщением:",
                 parse_mode="Markdown"
             )
         return jsonify({"ok": True})
     
-    # /stats with password
-    if text.startswith("/stats "):
-        provided = text[7:].strip()
+    # /stats with password (with or without space)
+    if text.startswith("/stats ") or text.startswith("/stats") and len(text) > 6 and text[6] != "_":
+        provided = text[7:].strip() if text.startswith("/stats ") else text[6:].strip()
         if provided == ADMIN_PASSWORD:
             authenticated_users.add(chat_id)
             send_message(chat_id, "✅ *Пароль верный!*\n\nЗагружаю статистику...")
             show_stats(chat_id)
         else:
-            send_message(chat_id, "❌ *Неверный пароль.*\n\nПопробуйте снова: `/stats ПАРОЛЬ`")
+            send_message(chat_id, "❌ *Неверный пароль.*\n\nПравильно: `/stats 211114`", parse_mode="Markdown")
+        return jsonify({"ok": True})
+    
+    # Raw password input (after /stats prompt)
+    if text == ADMIN_PASSWORD:
+        authenticated_users.add(chat_id)
+        send_message(chat_id, "✅ *Пароль верный!*\n\nЗагружаю статистику...")
+        show_stats(chat_id)
+        return jsonify({"ok": True})
+    
+    # Wrong password attempt
+    if text.isdigit() and len(text) == 6 and text != ADMIN_PASSWORD:
+        send_message(chat_id, "❌ *Неверный пароль.*\n\nПравильно: `/stats 211114`", parse_mode="Markdown")
         return jsonify({"ok": True})
     
     # Default
     send_message(
         chat_id,
-        "Привет! Напиши /start чтобы выбрать главу, или /stats для аналитики.",
+        "Привет! Напиши /start чтобы выбрать главу, или /stats 211114 для аналитики.",
         make_chapter_keyboard()
     )
     return jsonify({"ok": True})
