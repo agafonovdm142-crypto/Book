@@ -30,10 +30,10 @@
   @media(max-width:600px){.chapter-header h1{font-size:1.9em}.scene-text{font-size:1.2em}}
 </style>
 </head>
-<body>
+<body data-chapter="02">
 <div class="container">
   <div class="nav-bar">
-    <a href="/book/">&larr; Книга</a>
+    <a href="/">&larr; Книга</a>
     <span>Глава 2 — вторая</span>
   </div>
   <div class="chapter-header">
@@ -71,6 +71,7 @@ function renderScene(sceneId) {
   const scene = SCENES[sceneId];
   if (!scene) return;
   currentScene = sceneId;
+  if(typeof trackScene==="function")trackScene(sceneId);
   sceneHistory.push(sceneId);
   const app = document.getElementById('app');
   let html = '<div class="fade-in">';
@@ -85,6 +86,7 @@ function renderScene(sceneId) {
     });
     html += '</div>';
   } else {
+    if(typeof trackComplete==='function')trackComplete();
     html += '<div class="end-marker"><p>~ Конец главы ~</p><p style="margin-top:10px;font-size:0.9em">Конец истории</p></div>';
   }
   html += '</div>';
@@ -97,5 +99,6 @@ function renderScene(sceneId) {
 function choose(targetId) { renderScene(targetId); }
 renderScene(currentScene);
 </script>
+<script src="../analytics.js"></script>
 </body>
 </html>
