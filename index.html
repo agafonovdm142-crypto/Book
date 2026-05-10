@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Живая Книга</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Montserrat:wght@300;400;500;600&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Montserrat',sans-serif;background:linear-gradient(135deg,#1a0f0a 0%,#2d1a12 50%,#1a1410 100%);color:#f5ede4;min-height:100vh}
+  .container{max-width:720px;margin:0 auto;padding:20px 16px 40px}
+  .header{text-align:center;padding:40px 0 30px}
+  .header h1{font-family:'Cormorant Garamond',serif;font-size:2.8em;color:#d4af89;font-weight:400;font-style:italic;margin-bottom:8px}
+  .header .subtitle{font-size:0.85em;color:#a89080;letter-spacing:4px;text-transform:uppercase;margin-bottom:16px}
+  .header .desc{font-family:'Cormorant Garamond',serif;font-size:1.15em;color:#c4a882;font-style:italic;line-height:1.6}
+  .divider{width:60px;height:1px;background:linear-gradient(90deg,transparent,#d4af89,transparent);margin:30px auto}
+  .chapter-list{display:flex;flex-direction:column;gap:14px}
+  .chapter-card{display:flex;align-items:center;background:rgba(212,175,137,0.06);border:1px solid rgba(212,175,137,0.15);border-radius:12px;padding:18px 20px;text-decoration:none;color:inherit;transition:all 0.3s ease}
+  .chapter-card:hover{background:rgba(212,175,137,0.12);border-color:rgba(212,175,137,0.35);transform:translateY(-2px)}
+  .chapter-num{font-family:'Cormorant Garamond',serif;font-size:2em;color:#d4af89;opacity:0.6;margin-right:18px;min-width:40px;text-align:center}
+  .chapter-info{flex:1}
+  .chapter-title{font-family:'Cormorant Garamond',serif;font-size:1.25em;color:#f5ede4;margin-bottom:4px}
+  .chapter-sub{font-size:0.8em;color:#a89080}
+  .chapter-arrow{color:#d4af89;opacity:0.5;font-size:1.2em;margin-left:10px}
+  .chapter-card:hover .chapter-arrow{opacity:1}
+  .chapter-card.coming-soon{opacity:0.5;pointer-events:none}
+  .footer{text-align:center;padding:40px 0 20px;color:#a89080;font-size:0.8em;letter-spacing:2px}
+  @media(max-width:600px){.header h1{font-size:2.2em}.chapter-title{font-size:1.1em}}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="subtitle">Интерактивные истории</div>
+    <h1>Живая Книга</h1>
+    <p class="desc">Каждый выбор меняет сюжет.<br>Каждая глава — новая история о себе.</p>
+  </div>
+  
+  <div class="divider"></div>
+  
+  <div class="chapter-list">
+    <a href="stories/01-subbotnee-utro/index.html" class="chapter-card">
+      <div class="chapter-num">I</div>
+      <div class="chapter-info">
+        <div class="chapter-title">Субботнее утро</div>
+        <div class="chapter-sub">103 сцены &middot; Три мужчины. Три пути. Одно утро.</div>
+      </div>
+      <div class="chapter-arrow">&rarr;</div>
+    </a>
+    
+    <a href="stories/02-vecher-s-maksom/index.html" class="chapter-card">
+      <div class="chapter-num">II</div>
+      <div class="chapter-info">
+        <div class="chapter-title">Вечер с Максом</div>
+        <div class="chapter-sub">17 сцен &middot; Ужин, кино, и что было после.</div>
+      </div>
+      <div class="chapter-arrow">&rarr;</div>
+    </a>
+    
+    <a href="stories/03-noch-s-leshey/index.html" class="chapter-card">
+      <div class="chapter-num">III</div>
+      <div class="chapter-info">
+        <div class="chapter-title">Ночь с Лёшей</div>
+        <div class="chapter-sub">14 сцен &middot; Балкон, дождь, рассвет.</div>
+      </div>
+      <div class="chapter-arrow">&rarr;</div>
+    </a>
+    
+    <a href="stories/04-masterskaya-artema/index.html" class="chapter-card">
+      <div class="chapter-num">IV</div>
+      <div class="chapter-info">
+        <div class="chapter-title">Мастерская Артёма</div>
+        <div class="chapter-sub">20 сцен &middot; Краски, холсты, чувственность через искусство.</div>
+      </div>
+      <div class="chapter-arrow">&rarr;</div>
+    </a>
+    
+    <a href="stories/05-voskresene/index.html" class="chapter-card">
+      <div class="chapter-num">V</div>
+      <div class="chapter-info">
+        <div class="chapter-title">Воскресенье — Финал</div>
+        <div class="chapter-sub">14 сцен &middot; Все пути ведут к себе. Ты решаешь.</div>
+      </div>
+      <div class="chapter-arrow">&rarr;</div>
+    </a>
+  </div>
+  
+  <div class="footer">ЖИВАЯ КНИГА &middot; 2025</div>
+</div>
+</body>
+</html>
