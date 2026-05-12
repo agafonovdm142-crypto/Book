@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Живая Книга — Telegram Bot (PTB 21, Python 3.14 compatible)
-Simple polling, no Flask.
+Живая Книга — Telegram Bot (Python 3.14 compatible)
+Uses asyncio.run() instead of run_polling()
 """
 import os
 import logging
+import asyncio
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
@@ -39,7 +40,7 @@ def chapter_kb():
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📖 *Живая Книга*\n\nИнтерактивные истории.\n\nНажми кнопку 👇",
+        "📖 *Живая Книга*\n\nИнтерактивные истории, где каждый выбор меняет всё.\n\nНажми кнопку ниже 👇",
         parse_mode="Markdown", reply_markup=main_menu_kb()
     )
 
@@ -80,19 +81,10 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("📖 Меню:", reply_markup=main_menu_kb())
 
-import asyncio
-
-def main():
+async def main():
     if not TOKEN:
         logger.error("BOT_TOKEN not set!"); return
     logger.info(f"Bot starting...")
-    
-    # Python 3.14 fix: create event loop manually
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
     
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
@@ -101,7 +93,13 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
     
     logger.info("Bot polling!")
-    app.run_polling(drop_pending_updates=True, poll_interval=2)
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling(drop_pending_updates=True, poll_interval=2)
+    
+    # Keep running
+    while True:
+        await asyncio.sleep(3600)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
