@@ -1,12 +1,3 @@
-import os
-import subprocess
-# Install deps at runtime (Render pip cache is broken)
-subprocess.run([
-    "pip", "install", "-q",
-    "python-telegram-bot==13.15",
-    "Flask==3.0.0",
-    "standard-imghdr==3.13.0"
-], check=False)
 import logging
 from flask import Flask
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update
