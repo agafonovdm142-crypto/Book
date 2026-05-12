@@ -10,7 +10,9 @@ from telegram.ext import Application, CommandHandler
 import datetime
 
 TOKEN = os.environ.get("BOT_TOKEN", "")
-CHANNEL_ID = "agafon_pastyr"  # Channel username
+# ─── КАНАЛЫ ───
+AGAFON_CHANNEL = "agafon_pastyr"      # Личный блог Агафона
+BOOK_CHANNEL = "zivaya_kniga1"        # Книжный канал
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
