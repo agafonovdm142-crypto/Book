@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
 Живая Книга — Telegram Bot
-Polling only. No Flask. No webhook.
+Polling only. Python 3.14 compatible.
 """
 import os
 import logging
+import asyncio
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
@@ -90,21 +91,27 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def error_handler(update, context):
     logger.error(f"Update {update} caused error {context.error}")
 
-def main():
+async def main():
     if not TOKEN:
         logger.error("BOT_TOKEN not set!")
         return
     logger.info(f"Bot starting, token length: {len(TOKEN)}")
-    
+
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", start))
     app.add_handler(CallbackQueryHandler(button))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
     app.add_error_handler(error_handler)
-    
+
     logger.info("Bot started! Polling...")
-    app.run_polling(drop_pending_updates=True, poll_interval=2)
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling(drop_pending_updates=True, poll_interval=2)
+
+    # Keep running
+    while True:
+        await asyncio.sleep(3600)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
