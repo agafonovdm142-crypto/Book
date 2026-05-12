@@ -80,10 +80,19 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("📖 Меню:", reply_markup=main_menu_kb())
 
+import asyncio
+
 def main():
     if not TOKEN:
         logger.error("BOT_TOKEN not set!"); return
     logger.info(f"Bot starting...")
+    
+    # Python 3.14 fix: create event loop manually
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
     
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
