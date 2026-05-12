@@ -1,21 +1,14 @@
 #!/usr/bin/env python3
 """
-Живая Книга — Telegram Bot (Flask + Polling hybrid)
-Flask keeps Render happy (port open).
-Polling in background thread handles Telegram.
+Живая Книга — Telegram Bot v13 (no asyncio, no threading issues)
+Flask for Render port + polling with PTB 13.x
 """
 import os
 import logging
-import threading
-import time
 from flask import Flask
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import (
-    Application, CommandHandler, CallbackQueryHandler,
-    ContextTypes, MessageHandler, filters
-)
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot, Update
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters
 
-# ─── CONFIG ───
 TOKEN = os.environ.get("BOT_TOKEN", "")
 ADMIN_PASSWORD = "121114"
 
@@ -31,12 +24,12 @@ CHAPTERS = {
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ─── FLASK (for Render port check) ───
+# ─── FLASK ───
 app = Flask(__name__)
 
 @app.route("/")
 def index():
-    return "✅ Живая Книга Bot is running! <a href='https://t.me/Jivaya_kniga_bot'>Open Bot</a>"
+    return "✅ Живая Книга Bot is running!"
 
 @app.route("/health")
 def health():
@@ -55,31 +48,31 @@ def chapter_kb():
     return InlineKeyboardMarkup(buttons)
 
 # ─── HANDLERS ───
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
+def start(update, context):
+    update.message.reply_text(
         "📖 *Живая Книга*\n\nИнтерактивные истории, где каждый выбор меняет всё.\n\nНажми кнопку ниже 👇",
         parse_mode="Markdown", reply_markup=main_menu_kb()
     )
 
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def button(update, context):
     q = update.callback_query
-    await q.answer()
+    q.answer()
     d = q.data
 
     if d == "chapters":
-        await q.edit_message_text("📖 Выбери главу:", parse_mode="Markdown", reply_markup=chapter_kb())
+        q.edit_message_text("📖 Выбери главу:", parse_mode="Markdown", reply_markup=chapter_kb())
     elif d == "main":
-        await q.edit_message_text("📖 *Живая Книга*", parse_mode="Markdown", reply_markup=main_menu_kb())
+        q.edit_message_text("📖 *Живая Книга*", parse_mode="Markdown", reply_markup=main_menu_kb())
     elif d == "stats_prompt":
         context.chat_data["awaiting"] = True
-        await q.edit_message_text(
+        q.edit_message_text(
             "🔐 Введи пароль ответным сообщением:",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Назад", callback_data="main")]])
         )
     elif d in CHAPTERS:
         ch = CHAPTERS[d]
-        await q.edit_message_text(
+        q.edit_message_text(
             f"📖 *{ch['title']}*\n\nНажми кнопку, чтобы читать:",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
@@ -88,48 +81,41 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ])
         )
 
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def text_handler(update, context):
     if context.chat_data.get("awaiting"):
         context.chat_data["awaiting"] = False
         if update.message.text.strip() == ADMIN_PASSWORD:
             stats_lines = [f"📈 [{ch['title']}]({ch['url']})" for ch in CHAPTERS.values()]
             stats_text = "\n".join(stats_lines)
-            await update.message.reply_text(
+            update.message.reply_text(
                 f"📊 *Аналитика Живой Книги*\n\n{stats_text}\n\n"
                 f"📊 [Полный дашборд →](https://kt7ussahgizfm.kimi.page/stats.html)",
                 parse_mode="Markdown", reply_markup=main_menu_kb(),
                 disable_web_page_preview=True
             )
         else:
-            await update.message.reply_text("❌ Неверный пароль.", reply_markup=main_menu_kb())
+            update.message.reply_text("❌ Неверный пароль.", reply_markup=main_menu_kb())
     else:
-        await update.message.reply_text("📖 Используй меню:", reply_markup=main_menu_kb())
-
-# ─── BOT POLLING (in background thread) ───
-def run_bot():
-    """Run Telegram bot with polling in background thread"""
-    logger.info(f"Bot thread starting, token length: {len(TOKEN)}")
-
-    bot_app = Application.builder().token(TOKEN).build()
-    bot_app.add_handler(CommandHandler("start", start))
-    bot_app.add_handler(CommandHandler("help", start))
-    bot_app.add_handler(CallbackQueryHandler(button))
-    bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-
-    logger.info("Bot polling started!")
-    bot_app.run_polling(drop_pending_updates=True, poll_interval=2)
+        update.message.reply_text("📖 Используй меню:", reply_markup=main_menu_kb())
 
 # ─── MAIN ───
 if __name__ == "__main__":
     if not TOKEN:
         logger.error("BOT_TOKEN not set!")
     else:
-        # Start bot in background thread
-        bot_thread = threading.Thread(target=run_bot, daemon=True)
-        bot_thread.start()
-        logger.info("Bot thread launched")
+        logger.info(f"Bot starting, token length: {len(TOKEN)}")
 
-    # Start Flask (keeps Render happy with open port)
+        updater = Updater(token=TOKEN, use_context=True)
+        dp = updater.dispatcher
+
+        dp.add_handler(CommandHandler("start", start))
+        dp.add_handler(CommandHandler("help", start))
+        dp.add_handler(CallbackQueryHandler(button))
+        dp.add_handler(MessageHandler(Filters.text & ~Filters.command, text_handler))
+
+        updater.start_polling(drop_pending_updates=True, poll_interval=2)
+        logger.info("Bot polling started!")
+
     port = int(os.environ.get("PORT", 5000))
     logger.info(f"Flask starting on port {port}")
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
