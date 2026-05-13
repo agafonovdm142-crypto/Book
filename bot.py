@@ -9,11 +9,15 @@ import logging
 import threading
 import asyncio
 from flask import Flask
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, Bot
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     ContextTypes, MessageHandler, filters
 )
+
+# ─── CHANNELS ───
+AGAFON_CHANNEL = "agafon_pastyr"
+BOOK_CHANNEL = "zivaya_kniga1"
 
 # ─── CONFIG ───
 TOKEN = os.environ.get("BOT_TOKEN", "")
@@ -83,6 +87,54 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ])
         )
 
+# ─── AUTO-POSTER ───
+POSTS_BANK = {
+    "intro": "🌅 Доброе утро, моя.\n\nОна открыла глаза. Запах кофе с балкона. Его рубашка на ней — большая, с запахом ладана.\n\nОн не спал. Сидел на краю кровати.\n\n— Ты куришь? — спросила она.\n— Бросил. Три года назад. Но с тобой хочу снова.\n\n📖 Глава 1 — бесплатно: @Jivaya_kniga_bot",
+    
+    "fragment2": "🌙 Вечерний фрагмент\n\nОна стояла у окна, закутанная в его рубашку. Он подошёл сзади. Не обнял — просто встал так близко, что она почувствовала тепло.\n\n— Знаешь, что хочу? — шепнул он.\n— Что?\n— Завтракать так каждое утро.\n\n📖 Читать: @Jivaya_kniga_bot",
+    
+    "night": "🌙 Спокойной ночи, моя.\n\nПредставь: тёплые руки на талии. Тихо. Медленно.\n\nЯ напишу продолжение. Но не сегодня.\n\nСпи.\n\n— Агафон",
+    
+    "interactive": "🤔 Выбери:\n\nТы встречаешь его в кофейне. Он сидит у окна, читает твою любимую книгу.\n\nЧто ты делаешь?\nА — Подходишь\nБ — Проходишь мимо\nВ — Садишься за соседний стол\n\nПиши в комментариях 👇\n\n📖 @Jivaya_kniga_bot",
+    
+    "sale": "🔓 Ты прочитала три главы. Бесплатно.\n\nТеперь выбор: уйти или остаться.\n\nГлавы 4-6 — другой уровень. Сергей, который не спрашивает. Но знает.\n\n199₽. Одноразово. Навсегда.\n\n📖 @Jivaya_kniga_bot",
+    
+    "review": "💬 Что пишут читательницы:\n\n«Я читала на работе в туалете. Потому что не могла остановиться.»\n\n«199₽ — это не цена. Это инвестиция в себя.»\n\n📖 @Jivaya_kniga_bot",
+}
+
+async def post_to_channels(context, post_key):
+    """Publish post to both channels"""
+    try:
+        bot = context.bot if hasattr(context, 'bot') else context._bot
+        text = POSTS_BANK.get(post_key, "📖 Новый пост в @Jivaya_kniga_bot")
+        
+        # Post to Agafon channel
+        await bot.send_message(chat_id=f"@{AGAFON_CHANNEL}", text=text, parse_mode="HTML")
+        logger.info(f"Posted to @{AGAFON_CHANNEL}: {post_key}")
+        
+        # Post to Book channel (same text)
+        await bot.send_message(chat_id=f"@{BOOK_CHANNEL}", text=text, parse_mode="HTML")
+        logger.info(f"Posted to @{BOOK_CHANNEL}: {post_key}")
+        
+    except Exception as e:
+        logger.error(f"Post error: {e}")
+
+async def cmd_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Manual post trigger"""
+    if not context.args:
+        await update.message.reply_text("Использование: /post [intro|fragment2|night|interactive|sale|review]")
+        return
+    
+    post_key = context.args[0]
+    if post_key not in POSTS_BANK:
+        await update.message.reply_text(f"Нет такого поста. Доступные: {', '.join(POSTS_BANK.keys())}")
+        return
+    
+    await post_to_channels(context, post_key)
+    await update.message.reply_text(f"✅ Пост '{post_key}' опубликован в оба канала!")
+
+# ─── ORIGINAL HANDLERS ───
+
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.chat_data.get("awaiting"):
         context.chat_data["awaiting"] = False
@@ -106,6 +158,7 @@ def run_bot():
         bot_app = Application.builder().token(TOKEN).build()
         bot_app.add_handler(CommandHandler("start", start))
         bot_app.add_handler(CommandHandler("help", start))
+        bot_app.add_handler(CommandHandler("post", cmd_post))
         bot_app.add_handler(CallbackQueryHandler(button))
         bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
         
