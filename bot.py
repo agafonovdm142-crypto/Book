@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
-Живая Книга — Telegram Bot (Python 3.14 compatible)
-Uses asyncio.run() instead of run_polling()
+Живая Книга — Telegram Bot (Flask + Polling hybrid)
+Flask opens port (Render happy) + PTB 21 polling (bot works)
+Python 3.14 compatible — asyncio.run() + threading
 """
 import os
 import logging
+import threading
 import asyncio
+from flask import Flask
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     ContextTypes, MessageHandler, filters
 )
 
+# ─── CONFIG ───
 TOKEN = os.environ.get("BOT_TOKEN", "")
 ADMIN_PASSWORD = "121114"
 
@@ -27,6 +31,18 @@ CHAPTERS = {
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ─── FLASK (port for Render) ───
+app = Flask(__name__)
+
+@app.route("/")
+def index():
+    return "✅ Живая Книга Bot is running! <a href='https://t.me/Jivaya_kniga_bot'>Open Bot</a>"
+
+@app.route("/health")
+def health():
+    return {"status": "ok", "bot": "running"}
+
+# ─── BOT FUNCTIONS ───
 def main_menu_kb():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📖 Выбрать главу", callback_data="chapters")],
@@ -81,25 +97,40 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("📖 Меню:", reply_markup=main_menu_kb())
 
-async def main():
-    if not TOKEN:
-        logger.error("BOT_TOKEN not set!"); return
-    logger.info(f"Bot starting...")
+# ─── POLLING IN BACKGROUND THREAD ───
+def run_bot():
+    """Run Telegram bot polling in background thread"""
+    logger.info(f"Bot thread starting...")
     
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", start))
-    app.add_handler(CallbackQueryHandler(button))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+    async def bot_main():
+        bot_app = Application.builder().token(TOKEN).build()
+        bot_app.add_handler(CommandHandler("start", start))
+        bot_app.add_handler(CommandHandler("help", start))
+        bot_app.add_handler(CallbackQueryHandler(button))
+        bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+        
+        logger.info("Bot polling started!")
+        await bot_app.initialize()
+        await bot_app.start()
+        await bot_app.updater.start_polling(drop_pending_updates=True, poll_interval=2)
+        
+        # Keep running
+        while True:
+            await asyncio.sleep(3600)
     
-    logger.info("Bot polling!")
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling(drop_pending_updates=True, poll_interval=2)
-    
-    # Keep running
-    while True:
-        await asyncio.sleep(3600)
+    asyncio.run(bot_main())
 
+# ─── MAIN ───
 if __name__ == "__main__":
-    asyncio.run(main())
+    if not TOKEN:
+        logger.error("BOT_TOKEN not set!")
+    else:
+        # Start bot in background thread
+        bot_thread = threading.Thread(target=run_bot, daemon=True)
+        bot_thread.start()
+        logger.info("Bot thread launched")
+    
+    # Start Flask (opens port for Render)
+    port = int(os.environ.get("PORT", 10000))
+    logger.info(f"Flask starting on port {port}")
+    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
