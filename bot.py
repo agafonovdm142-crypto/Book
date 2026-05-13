@@ -47,9 +47,14 @@ def health():
     return {"status": "ok", "bot": "running"}
 
 # ─── BOT FUNCTIONS ───
+SITE_URL = "https://kt7ussahgizfm.kimi.page"
+
 def main_menu_kb():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📖 Выбрать главу", callback_data="chapters")],
+        [InlineKeyboardButton("ℹ️ О проекте", url=SITE_URL)],
+        [InlineKeyboardButton("📄 Условия и возврат", url=f"{SITE_URL}/terms.html")],
+        [InlineKeyboardButton("💬 Написать автору", url="https://t.me/agafon_pastyr")],
         [InlineKeyboardButton("📊 Аналитика 🔐", callback_data="stats_prompt")],
     ])
 
@@ -59,33 +64,46 @@ def chapter_kb():
     return InlineKeyboardMarkup(buttons)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📖 *Живая Книга*\n\nИнтерактивные истории, где каждый выбор меняет всё.\n\nНажми кнопку ниже 👇",
-        parse_mode="Markdown", reply_markup=main_menu_kb()
-    )
+    try:
+        await update.message.reply_text(
+            "📖 *Живая Книга*\n\nИнтерактивные истории, где каждый выбор меняет всё.\n\n"
+            "3 главы бесплатно. Главы 4–6 — 199₽.\n\n"
+            "[Условия использования]({SITE_URL}/terms.html) · [Возврат]({SITE_URL}/refund.html)\n\n"
+            "Нажми кнопку ниже 👇".format(SITE_URL=SITE_URL),
+            parse_mode="Markdown", reply_markup=main_menu_kb(), disable_web_page_preview=True
+        )
+    except Exception as e:
+        logger.error(f"Start error: {e}")
+        await update.message.reply_text("Бот временно недоступен. Попробуй позже.")
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
     d = q.data
 
-    if d == "chapters":
-        await q.edit_message_text("📖 Выбери главу:", reply_markup=chapter_kb())
-    elif d == "main":
-        await q.edit_message_text("📖 *Живая Книга*", parse_mode="Markdown", reply_markup=main_menu_kb())
-    elif d == "stats_prompt":
-        context.chat_data["awaiting"] = True
-        await q.edit_message_text("🔐 Введи пароль:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Назад", callback_data="main")]]))
-    elif d in CHAPTERS:
-        ch = CHAPTERS[d]
-        await q.edit_message_text(
-            f"📖 *{ch['title']}*\n\nНажми, чтобы читать:",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("▶️ Начать чтение", url=ch["url"])],
-                [InlineKeyboardButton("← Назад", callback_data="chapters")]
-            ])
-        )
+    try:
+        if d == "chapters":
+            await q.edit_message_text("📖 Выбери главу:", reply_markup=chapter_kb())
+        elif d == "main":
+            await q.edit_message_text("📖 *Живая Книга*", parse_mode="Markdown", reply_markup=main_menu_kb())
+        elif d == "stats_prompt":
+            context.chat_data["awaiting"] = True
+            await q.edit_message_text("🔐 Введи пароль:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Назад", callback_data="main")]]))
+        elif d in CHAPTERS:
+            ch = CHAPTERS[d]
+            await q.edit_message_text(
+                f"📖 *{ch['title']}*\n\nНажми кнопку или ссылку ниже:\n\n👉 [{ch['title']}]({ch['url']})",
+                parse_mode="Markdown",
+                disable_web_page_preview=True,
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("▶️ Начать чтение", url=ch["url"])],
+                    [InlineKeyboardButton("🌐 Открыть в браузере", url=ch["url"])],
+                    [InlineKeyboardButton("← Назад", callback_data="chapters")]
+                ])
+            )
+    except Exception as e:
+        logger.error(f"Button error [{d}]: {e}")
+        await q.edit_message_text(f"❌ Ошибка: {e}\n\nПопробуй /start", reply_markup=main_menu_kb())
 
 # ─── AUTO-POSTER ───
 POSTS_BANK = {
@@ -109,29 +127,34 @@ async def post_to_channels(context, post_key):
         text = POSTS_BANK.get(post_key, "📖 Новый пост в @Jivaya_kniga_bot")
         
         # Post to Agafon channel
-        await bot.send_message(chat_id=f"@{AGAFON_CHANNEL}", text=text, parse_mode="HTML")
+        await bot.send_message(chat_id=f"@{AGAFON_CHANNEL}", text=text)
         logger.info(f"Posted to @{AGAFON_CHANNEL}: {post_key}")
         
         # Post to Book channel (same text)
-        await bot.send_message(chat_id=f"@{BOOK_CHANNEL}", text=text, parse_mode="HTML")
+        await bot.send_message(chat_id=f"@{BOOK_CHANNEL}", text=text)
         logger.info(f"Posted to @{BOOK_CHANNEL}: {post_key}")
         
     except Exception as e:
         logger.error(f"Post error: {e}")
+        raise  # Re-raise so cmd_post can notify user
 
 async def cmd_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Manual post trigger"""
-    if not context.args:
-        await update.message.reply_text("Использование: /post [intro|fragment2|night|interactive|sale|review]")
-        return
-    
-    post_key = context.args[0]
-    if post_key not in POSTS_BANK:
-        await update.message.reply_text(f"Нет такого поста. Доступные: {', '.join(POSTS_BANK.keys())}")
-        return
-    
-    await post_to_channels(context, post_key)
-    await update.message.reply_text(f"✅ Пост '{post_key}' опубликован в оба канала!")
+    try:
+        if not context.args:
+            await update.message.reply_text("Использование: /post [intro|fragment2|night|interactive|sale|review]")
+            return
+        
+        post_key = context.args[0]
+        if post_key not in POSTS_BANK:
+            await update.message.reply_text(f"Нет такого поста. Доступные: {', '.join(POSTS_BANK.keys())}")
+            return
+        
+        await post_to_channels(context, post_key)
+        await update.message.reply_text(f"✅ Пост '{post_key}' опубликован в оба канала!")
+    except Exception as e:
+        logger.error(f"Cmd post error: {e}")
+        await update.message.reply_text(f"❌ Ошибка публикации: {e}")
 
 # ─── ORIGINAL HANDLERS ───
 
