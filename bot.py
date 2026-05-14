@@ -92,21 +92,17 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.chat_data["awaiting"] = True
             await q.edit_message_text("🔐 Введи пароль:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Назад", callback_data="main")]]))
         elif d == "bonus":
-        b = BONUS["bonus"]
-        await q.edit_message_text(
-            f"🎀 *{b['title']}*
-
-Нажми, чтобы читать:
-
-👉 [{b['title']}]({b['url']})",
-            parse_mode="Markdown",
-            disable_web_page_preview=True,
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("▶️ Начать чтение", url=b["url"])],
-                [InlineKeyboardButton("← Назад", callback_data="chapters")]
-            ])
-        )
-    elif d in CHAPTERS:
+            b = BONUS["bonus"]
+            await q.edit_message_text(
+                f"🎀 *{b['title']}*\n\nНажми, чтобы читать:\n\n👉 [{b['title']}]({b['url']})",
+                parse_mode="Markdown",
+                disable_web_page_preview=True,
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("▶️ Начать чтение", url=b["url"])],
+                    [InlineKeyboardButton("← Назад", callback_data="chapters")]
+                ])
+            )
+        elif d in CHAPTERS:
             ch = CHAPTERS[d]
             await q.edit_message_text(
                 f"📖 *{ch['title']}*\n\nНажми кнопку или ссылку ниже:\n\n👉 [{ch['title']}]({ch['url']})",
