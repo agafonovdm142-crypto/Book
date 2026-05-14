@@ -23,6 +23,7 @@ CHAPTERS = [
     '04-masterskaya-artema',
     '05-voskresene',
     '06-vlastnyy',
+    '07-shibari',
 ]
 
 ERRORS = []
