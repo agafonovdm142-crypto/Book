@@ -23,8 +23,6 @@ BOOK_CHANNEL = "zivaya_kniga1"
 TOKEN = os.environ.get("BOT_TOKEN", "")
 ADMIN_PASSWORD = "121114"
 
-BONUS = {"bonus": {"title": "Бонус — Шибари", "url": "https://kt7ussahgizfm.kimi.page/stories/bonus-shibari/index.html"}}
-
 CHAPTERS = {
     "ch1": {"title": "Глава 1 — Субботнее утро", "url": "https://kt7ussahgizfm.kimi.page/stories/01-subbotnee-utro/index.html"},
     "ch2": {"title": "Глава 2 — Вечер с Максом", "url": "https://kt7ussahgizfm.kimi.page/stories/02-vecher-s-maksom/index.html"},
@@ -32,6 +30,7 @@ CHAPTERS = {
     "ch4": {"title": "Глава 4 — Мастерская Артёма", "url": "https://kt7ussahgizfm.kimi.page/stories/04-masterskaya-artema/index.html"},
     "ch5": {"title": "Глава 5 — Воскресенье", "url": "https://kt7ussahgizfm.kimi.page/stories/05-voskresene/index.html"},
     "ch6": {"title": "Глава 6 — Властный", "url": "https://kt7ussahgizfm.kimi.page/stories/06-vlastnyy/index.html"},
+    "ch7": {"title": "Глава 7 — Шибари-мастер", "url": "https://kt7ussahgizfm.kimi.page/stories/07-shibari/index.html"},
 }
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -91,17 +90,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif d == "stats_prompt":
             context.chat_data["awaiting"] = True
             await q.edit_message_text("🔐 Введи пароль:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Назад", callback_data="main")]]))
-        elif d == "bonus":
-            b = BONUS["bonus"]
-            await q.edit_message_text(
-                f"🎀 *{b['title']}*\n\nНажми, чтобы читать:\n\n👉 [{b['title']}]({b['url']})",
-                parse_mode="Markdown",
-                disable_web_page_preview=True,
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("▶️ Начать чтение", url=b["url"])],
-                    [InlineKeyboardButton("← Назад", callback_data="chapters")]
-                ])
-            )
         elif d in CHAPTERS:
             ch = CHAPTERS[d]
             await q.edit_message_text(
