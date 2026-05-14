@@ -54,7 +54,7 @@ SITE_URL = "https://kt7ussahgizfm.kimi.page"
 def main_menu_kb():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📖 Выбрать главу", callback_data="chapters")],
-        [InlineKeyboardButton("ℹ️ О проекте", url=SITE_URL)],
+        [InlineKeyboardButton("🏠 Главная страница", url=SITE_URL)],
         [InlineKeyboardButton("📄 Условия и возврат", url=f"{SITE_URL}/terms.html")],
         [InlineKeyboardButton("💬 Написать автору", url="https://t.me/agafon_pastyr")],
         [InlineKeyboardButton("📊 Аналитика 🔐", callback_data="stats_prompt")],
