@@ -19,12 +19,18 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#1a0f0a;color:#f5ede
 </head>
 <body>
 <div class="container">
-<div class="header"><h1>Фестиваль оригами</h1></div>
+<div class="header"><h1>Глава 7 — Шибари</h1></div>
 <div id="app"></div>
+<div style="text-align:center;margin-top:24px">
+  <a href="../../index.html" style="display:inline-block;padding:12px 24px;background:rgba(212,175,137,0.12);border:1px solid rgba(212,175,137,0.3);color:#d4af89;text-decoration:none;border-radius:8px;font-size:15px">← Назад к книге</a>
+</div>
 </div>
 <script>
 const IMAGES={
-festival:null,workshop:null,suspension:null,after:null
+festival:'./img/shibari-festival.jpg',
+workshop:'./img/shibari-tea.jpg',
+suspension:'./img/shibari-suspension.jpg',
+after:'./img/shibari-tea.jpg'
 };
 const SCENES={
 's1_start':{text:'Ты вошла в павильон без названия.\n\nВнутри — тишина, нарушаемая только тихим шелестом бумаги и запахом сандалового дерева. Воздух был другим здесь: плотным, насыщенным, как перед грозой.\n\nВ центре — высокий мужчина в хлопковой рубашке цвета слоновой кости. Он складывал что-то из красной бумаги — тонкими, точными движениями, будто каждый изгиб был молитвой.\n\n— Оригами? — спросила ты.\n\n— Нет, — он поднял глаза. — Прелюдия.\n\nВокруг стояли бамбуковые стойки с верёвками — джутовыми, конопляными, шёлковыми. Не украшение. Инструмент.',img:IMAGES.festival,choices:[{label:'Подойти ближе',target:'s2_workshop'},{label:'Посмотреть на стойки',target:'s2_rope'}]},
