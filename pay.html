@@ -18,32 +18,19 @@ body{font-family:'Open Sans',sans-serif;background:#0e0a08;color:#f5ede4;display
 .features li{list-style:none;padding:8px 0;color:#c8b5a5;font-size:0.9em;border-bottom:1px solid rgba(212,175,137,0.1)}
 .features li:last-child{border-bottom:none}
 .features li::before{content:"✦";color:#d4af89;margin-right:10px}
+.input-block{margin:20px 0;text-align:left}
+.input-label{display:block;color:#a89080;font-size:0.8em;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.input-field{width:100%;background:rgba(0,0,0,0.25);border:1px solid rgba(212,175,137,0.15);border-radius:8px;color:#f5ede4;padding:11px 12px;font-family:inherit;font-size:1em;outline:none;transition:border-color 0.2s}
+.input-field:focus{border-color:#d4af89}
+.input-hint{color:#7a6a5a;font-size:0.75em;margin-top:6px}
 .btn-pay{width:100%;padding:14px;background:#d4af89;color:#0e0a08;border:none;border-radius:8px;font-family:'Cormorant Garamond',serif;font-size:1.3em;cursor:pointer;transition:all 0.3s;margin-top:15px}
 .btn-pay:hover:not(:disabled){background:#c9a67a;transform:translateY(-1px)}
 .btn-pay:disabled{opacity:0.6;cursor:wait}
 .btn-back{padding:10px 20px;background:transparent;color:#a89080;border:1px solid rgba(168,144,128,0.3);border-radius:8px;font-size:0.85em;cursor:pointer;margin-top:15px;transition:all 0.3s;text-decoration:none;display:inline-block}
 .btn-back:hover{color:#d4af89;border-color:#d4af89}
 .error{color:#c97070;font-size:0.85em;margin-top:10px;min-height:1.2em}
-.secure{color:#5a7a5a;font-size:0.75em;margin-top:15px}
-.sbp-icon{color:#888;font-size:0.75em;margin:10px 0}
-.qr-block{padding:20px 0}
-.qr-img{max-width:240px;width:100%;background:#fff;padding:12px;border-radius:12px;margin:10px auto;display:block}
-.field{margin:14px 0;text-align:left}
-.field-label{color:#a89080;font-size:0.8em;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
-.field-value{color:#f5ede4;font-size:1.1em;background:rgba(0,0,0,0.25);border:1px solid rgba(212,175,137,0.15);border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;word-break:break-all}
-.copy-btn{background:transparent;border:1px solid rgba(212,175,137,0.3);color:#d4af89;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:0.8em;margin-left:8px;flex-shrink:0}
-.copy-btn:hover{background:rgba(212,175,137,0.1)}
-.copied{color:#7a9a7a}
-.status{margin-top:20px;padding:14px;border-radius:8px;background:rgba(212,175,137,0.08);color:#d4af89;font-size:0.9em}
-.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(212,175,137,0.3);border-top-color:#d4af89;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:8px}
-@keyframes spin{to{transform:rotate(360deg)}}
-.hint{color:#a89080;font-size:0.75em;margin-top:14px;line-height:1.5}
-.tabs{display:flex;gap:6px;margin:0 0 18px 0;border-bottom:1px solid rgba(212,175,137,0.15)}
-.tab{flex:1;background:transparent;border:none;color:#a89080;padding:10px 12px;cursor:pointer;font-family:inherit;font-size:0.85em;border-bottom:2px solid transparent;transition:all 0.2s}
-.tab:hover{color:#d4af89}
-.tab-active{color:#d4af89;border-bottom-color:#d4af89}
-.pane{animation:fadeIn 0.2s ease}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.secure{color:#5a7a5a;font-size:0.75em;margin-top:15px;line-height:1.5}
+.pay-methods{color:#888;font-size:0.75em;margin:10px 0}
 </style>
 </head>
 <body>
@@ -51,197 +38,34 @@ body{font-family:'Open Sans',sans-serif;background:#0e0a08;color:#f5ede4;display
   <div class="logo">Живая Книга</div>
   <div class="subtitle">Полный доступ к интерактивным историям</div>
 
-  <div id="screen-offer" class="card">
+  <div class="card">
     <div class="price">199 ₽</div>
     <div class="price-desc">Первые 3 главы — бесплатно</div>
     <ul class="features">
       <li>Главы 1–3 — бесплатно</li>
-      <li>Главы 4–6 — открываются после оплаты</li>
+      <li>Главы 4–7 — открываются после оплаты</li>
       <li>30+ интерактивных сцен</li>
       <li>Выбор героя и концовки</li>
       <li>Доступ навсегда, на любом устройстве</li>
     </ul>
-    <button id="btn-pay" class="btn-pay" onclick="createOrder()">Купить доступ</button>
+
+    <div class="input-block">
+      <label class="input-label" for="email">Email для чека (необязательно)</label>
+      <input id="email" class="input-field" type="email" placeholder="ты@example.ru" autocomplete="email">
+      <div class="input-hint">Самозанятый присылает чек на этот email. Можно оставить пустым — чек будет в личном кабинете YooKassa.</div>
+    </div>
+
+    <button id="btn-pay" class="btn-pay" onclick="createPayment()">Оплатить 199 ₽</button>
     <div id="error" class="error"></div>
-    <div class="sbp-icon">Оплата через СБП • Любой банк РФ</div>
-  </div>
-
-  <div id="screen-qr" class="card" style="display:none">
-    <div class="price-desc">Оплати 199 ₽ — выбери способ ниже</div>
-
-    <div class="tabs">
-      <button class="tab tab-active" id="tab-sbp" onclick="showTab('sbp')">СБП по номеру</button>
-      <button class="tab" id="tab-bank" onclick="showTab('bank')">По реквизитам</button>
-    </div>
-
-    <div id="pane-sbp" class="pane">
-      <div class="qr-block"><img id="qr-img" class="qr-img" alt="QR-код для оплаты по СБП"></div>
-      <div class="field">
-        <div class="field-label">Сумма</div>
-        <div class="field-value"><span>199 ₽</span></div>
-      </div>
-      <div class="field">
-        <div class="field-label">Получатель (СБП)</div>
-        <div class="field-value"><span id="recipient-name">—</span></div>
-      </div>
-      <div class="field">
-        <div class="field-label">Номер для СБП</div>
-        <div class="field-value">
-          <span id="recipient-phone">—</span>
-          <button class="copy-btn" onclick="copyTxt('recipient-phone', this)">Скопировать</button>
-        </div>
-      </div>
-      <div class="field">
-        <div class="field-label">Комментарий к платежу (ОБЯЗАТЕЛЬНО)</div>
-        <div class="field-value">
-          <strong id="order-comment">—</strong>
-          <button class="copy-btn" onclick="copyTxt('order-comment', this)">Скопировать</button>
-        </div>
-      </div>
-      <div class="hint">
-        1. Открой банковское приложение → «Перевод по СБП» → номер телефона выше.<br>
-        2. Введи сумму <strong>199 ₽</strong> и вставь комментарий выше.<br>
-        3. Эта страница обновится после получения оплаты (1–2 минуты).
-      </div>
-    </div>
-
-    <div id="pane-bank" class="pane" style="display:none">
-      <div class="field"><div class="field-label">Сумма</div><div class="field-value"><span>199 ₽</span></div></div>
-      <div class="field">
-        <div class="field-label">Получатель</div>
-        <div class="field-value"><span id="bank-name">—</span><button class="copy-btn" onclick="copyTxt('bank-name', this)">Скопировать</button></div>
-      </div>
-      <div class="field">
-        <div class="field-label">Номер счёта</div>
-        <div class="field-value"><span id="bank-account">—</span><button class="copy-btn" onclick="copyTxt('bank-account', this)">Скопировать</button></div>
-      </div>
-      <div class="field">
-        <div class="field-label">БИК</div>
-        <div class="field-value"><span id="bank-bik">—</span><button class="copy-btn" onclick="copyTxt('bank-bik', this)">Скопировать</button></div>
-      </div>
-      <div class="field"><div class="field-label">Банк</div><div class="field-value"><span id="bank-bankname">—</span></div></div>
-      <div class="field">
-        <div class="field-label">Корр. счёт</div>
-        <div class="field-value"><span id="bank-corr">—</span><button class="copy-btn" onclick="copyTxt('bank-corr', this)">Скопировать</button></div>
-      </div>
-      <div class="field">
-        <div class="field-label">Назначение платежа (ОБЯЗАТЕЛЬНО)</div>
-        <div class="field-value"><strong id="bank-purpose">—</strong><button class="copy-btn" onclick="copyTxt('bank-purpose', this)">Скопировать</button></div>
-      </div>
-      <div class="hint">
-        Этот способ подойдёт, если в твоём банке нет СБП или платишь со счёта юрлица.<br>
-        Перевод идёт <strong>от часа до 1 рабочего дня</strong>.<br>
-        Обязательно вставь весь текст из поля «Назначение платежа».
-      </div>
-    </div>
-
-    <div class="status"><span class="spinner"></span> Ждём подтверждения оплаты…</div>
+    <div class="pay-methods">СБП · Карта · SberPay · ЮMoney</div>
   </div>
 
   <a href="/" class="btn-back">← На главную</a>
-  <div class="secure">Оплата напрямую на счёт самозанятого. Без посредников.</div>
+  <div class="secure">Оплата через YooKassa. Безопасный платёж напрямую на счёт самозанятого.</div>
 </div>
 
 <script>
-// ════════════════════════════════════════════════════════════════════
-// ⚠️  ЗАМЕНИ ЭТУ СТРОКУ НА СВОЙ URL СЕРВИСА В RENDER
-//      (видно в дашборде Render наверху страницы сервиса,
-//       обычно вида https://jivaya-kniga-bot-XXXX.onrender.com)
-// ════════════════════════════════════════════════════════════════════
 const API_BASE = 'https://book-gzle.onrender.com';
-
-let currentOrderId = null;
-let pollTimer = null;
-
-async function createOrder() {
-  const btn = document.getElementById('btn-pay');
-  const err = document.getElementById('error');
-  err.textContent = '';
-  btn.disabled = true;
-  btn.textContent = 'Создаём счёт…';
-
-  try {
-    const resp = await fetch(`${API_BASE}/api/sbp/create-order`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        amount: 199,
-        product: 'jivaya-kniga-full-access',
-        tg_user_id: getTgUserId()
-      })
-    });
-    if (!resp.ok) throw new Error('Сервер вернул ' + resp.status);
-
-    const data = await resp.json();
-    currentOrderId = data.order_id;
-
-    document.getElementById('screen-offer').style.display = 'none';
-    document.getElementById('screen-qr').style.display = 'block';
-
-    document.getElementById('qr-img').src = data.qr_image;
-    document.getElementById('recipient-name').textContent  = data.recipient_name || '—';
-    document.getElementById('recipient-phone').textContent = data.recipient_phone || '—';
-    document.getElementById('order-comment').textContent   = data.comment;
-
-    const b = data.bank || {};
-    document.getElementById('bank-name').textContent     = b.recipient_name || '—';
-    document.getElementById('bank-account').textContent  = b.account || '—';
-    document.getElementById('bank-bik').textContent      = b.bik || '—';
-    document.getElementById('bank-bankname').textContent = b.bank_name || '—';
-    document.getElementById('bank-corr').textContent     = b.corr_account || '—';
-    document.getElementById('bank-purpose').textContent  =
-      (b.purpose_template ? b.purpose_template : `Оплата заказа ${data.comment}`);
-
-    if (!b.account) {
-      document.getElementById('tab-bank').style.display = 'none';
-    }
-
-    try { localStorage.setItem('jk_last_order', currentOrderId); } catch(e){}
-    startPolling();
-
-  } catch (e) {
-    err.textContent = 'Не получилось создать заказ: ' + e.message;
-    btn.disabled = false;
-    btn.textContent = 'Купить доступ';
-  }
-}
-
-function startPolling() {
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(checkStatus, 5000);
-  checkStatus();
-}
-
-async function checkStatus() {
-  if (!currentOrderId) return;
-  try {
-    const resp = await fetch(`${API_BASE}/api/sbp/check?order_id=${encodeURIComponent(currentOrderId)}`);
-    const data = await resp.json();
-    if (data.paid) {
-      clearInterval(pollTimer);
-      window.location.href = `/success.html?order=${encodeURIComponent(currentOrderId)}`;
-    }
-  } catch (e) {
-    console.warn('check failed:', e);
-  }
-}
-
-function showTab(name) {
-  document.getElementById('pane-sbp').style.display  = (name === 'sbp')  ? 'block' : 'none';
-  document.getElementById('pane-bank').style.display = (name === 'bank') ? 'block' : 'none';
-  document.getElementById('tab-sbp').classList.toggle('tab-active',  name === 'sbp');
-  document.getElementById('tab-bank').classList.toggle('tab-active', name === 'bank');
-}
-
-function copyTxt(elemId, btn) {
-  const text = document.getElementById(elemId).innerText;
-  navigator.clipboard.writeText(text).then(() => {
-    const orig = btn.innerText;
-    btn.innerText = 'Скопировано';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.innerText = orig; btn.classList.remove('copied'); }, 1500);
-  });
-}
 
 function getTgUserId() {
   try {
@@ -250,15 +74,50 @@ function getTgUserId() {
       if (u && u.id) return u.id;
     }
   } catch(e) {}
+  try {
+    const tg = new URLSearchParams(window.location.search).get('tg');
+    if (tg && /^\d+$/.test(tg)) return Number(tg);
+  } catch(e) {}
   return null;
 }
 
-window.addEventListener('load', () => {
+async function createPayment() {
+  const btn = document.getElementById('btn-pay');
+  const err = document.getElementById('error');
+  const email = document.getElementById('email').value.trim();
+  err.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Открываем оплату…';
+
   try {
-    const saved = localStorage.getItem('jk_last_order');
-    if (saved) { currentOrderId = saved; checkStatus(); }
-  } catch(e){}
-});
+    const resp = await fetch(`${API_BASE}/api/yookassa/create-payment`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        amount: 199,
+        tg_user_id: getTgUserId(),
+        email: email || null,
+      })
+    });
+
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error('Сервер вернул ' + resp.status + ': ' + txt.slice(0, 150));
+    }
+
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    if (!data.confirmation_url) throw new Error('YooKassa не вернула ссылку для оплаты');
+
+    try { localStorage.setItem('jk_last_order', data.order_id); } catch(e){}
+    window.location.href = data.confirmation_url;
+
+  } catch (e) {
+    err.textContent = 'Не получилось открыть оплату: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'Оплатить 199 ₽';
+  }
+}
 </script>
 </body>
 </html>
