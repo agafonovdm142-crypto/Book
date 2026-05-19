@@ -3,35 +3,142 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Оплата успешна — Живая Книга</title>
+<title>Оплата прошла — Живая Книга</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Open+Sans:wght@300;400&display=swap');
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Open Sans',sans-serif;background:#0e0a08;color:#f5ede4;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:40px 20px}
-  .container{max-width:480px;width:100%;text-align:center}
-  .check{font-size:4em;color:#5a7a5a;margin-bottom:20px}
-  .title{font-family:'Cormorant Garamond',serif;font-size:2em;color:#d4af89;margin-bottom:15px}
-  .desc{color:#c8b5a5;font-size:1em;line-height:1.7;margin-bottom:30px}
-  .btn{width:100%;padding:14px;background:#d4af89;color:#0e0a08;border:none;border-radius:8px;font-family:'Cormorant Garamond',serif;font-size:1.2em;cursor:pointer;text-decoration:none;display:inline-block;transition:all 0.3s;margin-bottom:10px}
-  .btn:hover{background:#c9a67a}
-  .btn-sec{padding:12px;background:transparent;color:#d4af89;border:1px solid rgba(212,175,137,0.3);border-radius:8px;font-size:0.9em;cursor:pointer;text-decoration:none;display:inline-block;transition:all 0.3s}
-  .btn-sec:hover{border-color:#d4af89}
-  .gift{color:#a89080;font-size:0.85em;margin-top:25px;font-style:italic}
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Open+Sans:wght@300;400&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Open Sans',sans-serif;background:#0e0a08;color:#f5ede4;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px 20px}
+.container{max-width:480px;width:100%;text-align:center}
+.logo{font-family:'Cormorant Garamond',serif;font-size:2.5em;color:#d4af89;margin-bottom:30px}
+.card{background:rgba(212,175,137,0.06);border:1px solid rgba(212,175,137,0.15);border-radius:16px;padding:40px 30px}
+.checkmark{font-size:4em;color:#7a9a7a;margin-bottom:15px;line-height:1}
+.title{font-family:'Cormorant Garamond',serif;font-size:1.8em;color:#d4af89;margin-bottom:15px}
+.text{color:#c8b5a5;font-size:1em;line-height:1.6;margin-bottom:25px}
+.btn{display:inline-block;width:100%;padding:14px;background:#d4af89;color:#0e0a08;border:none;border-radius:8px;font-family:'Cormorant Garamond',serif;font-size:1.2em;cursor:pointer;text-decoration:none;transition:all 0.3s;margin-top:10px}
+.btn:hover{background:#c9a67a;transform:translateY(-1px)}
+.btn-secondary{background:transparent;color:#a89080;border:1px solid rgba(168,144,128,0.3)}
+.btn-secondary:hover{color:#d4af89;border-color:#d4af89;background:transparent}
+.status{color:#a89080;font-size:0.9em;margin:15px 0;min-height:1.2em}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(212,175,137,0.3);border-top-color:#d4af89;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pending{color:#d4af89}
+.confirmed{color:#7a9a7a}
+.error{color:#c97070}
 </style>
 </head>
 <body>
 <div class="container">
-  <div class="check">✓</div>
-  <div class="title">Оплата прошла успешно!</div>
-  <div class="desc">
-    Добро пожаловать в «Живую Книгу».<br><br>
-    Все 6 глав, все истории, все концовки — теперь твои.<br>
-    Читай где угодно, когда угодно.<br><br>
-    Приятного чтения.
+  <div class="logo">Живая Книга</div>
+  <div class="card">
+    <div id="checkmark" class="checkmark">⏳</div>
+    <div id="title" class="title">Проверяем оплату…</div>
+    <div id="text" class="text">Это занимает 5–30 секунд. Не закрывай страницу.</div>
+    <div id="status" class="status pending"><span class="spinner"></span> Жду подтверждения от YooKassa…</div>
+
+    <div id="order-block" style="margin:20px 0;padding:14px;background:rgba(212,175,137,0.08);border-radius:8px;display:none">
+      <div style="color:#a89080;font-size:0.8em;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Твой код заказа</div>
+      <div id="order-code" style="font-family:'Cormorant Garamond',serif;font-size:1.5em;color:#d4af89;letter-spacing:2px">—</div>
+      <div style="color:#a89080;font-size:0.75em;margin-top:8px;line-height:1.5">
+        Сохрани этот код. Если замочки в боте не исчезнут автоматически —
+        пришли его в чат с ботом командой <code>/claim &lt;код&gt;</code> или просто текстом.
+      </div>
+    </div>
+
+    <a id="btn-bot" href="https://t.me/Jivaya_kniga_bot" class="btn" style="display:none">📖 Открыть бота и читать</a>
+    <a href="/" class="btn btn-secondary">← На главную</a>
   </div>
-  <a href="/" class="btn">📖 Начать чтение</a>
-  <a href="https://t.me/Jivaya_kniga_bot" class="btn-sec">🤖 Открыть в Telegram</a>
-  <div class="gift">«История — это не слова на странице. Это то, что ты чувствуешь, переворачивая её.»</div>
 </div>
+
+<script>
+const API_BASE = 'https://book-gzle.onrender.com';
+
+function getOrderId() {
+  // 1. ?order=JK-XXXX из query (так YooKassa возвращает)
+  const q = new URLSearchParams(window.location.search).get('order');
+  if (q) return q;
+  // 2. localStorage от прошлой страницы
+  try {
+    const saved = localStorage.getItem('jk_last_order');
+    if (saved) return saved;
+  } catch(e) {}
+  return null;
+}
+
+const orderId = getOrderId();
+let attempts = 0;
+const MAX_ATTEMPTS = 24; // 24 * 5s = 2 минуты
+
+// Сразу показываем код заказа — он понадобится, если что-то пойдёт не так
+if (orderId) {
+  document.getElementById('order-code').textContent = orderId;
+  document.getElementById('order-block').style.display = 'block';
+}
+
+function setState(state, title, text, statusText, showBotBtn) {
+  document.getElementById('title').textContent = title;
+  document.getElementById('text').textContent = text;
+  const s = document.getElementById('status');
+  s.className = 'status ' + state;
+  s.innerHTML = statusText;
+  if (state === 'confirmed') {
+    document.getElementById('checkmark').textContent = '✓';
+    document.getElementById('checkmark').style.color = '#7a9a7a';
+  } else if (state === 'error') {
+    document.getElementById('checkmark').textContent = '!';
+    document.getElementById('checkmark').style.color = '#c97070';
+  }
+  document.getElementById('btn-bot').style.display = showBotBtn ? 'inline-block' : 'none';
+}
+
+async function check() {
+  if (!orderId) {
+    setState('error',
+      'Не нашли заказ',
+      'Похоже, ты попал сюда не после оплаты. Если только что заплатил — открой бота и проверь главы, должно открыться автоматически.',
+      'Order ID отсутствует',
+      true);
+    return;
+  }
+
+  attempts++;
+  try {
+    const resp = await fetch(`${API_BASE}/api/yookassa/check?order_id=${encodeURIComponent(orderId)}`);
+    const data = await resp.json();
+
+    if (data.paid) {
+      setState('confirmed',
+        'Оплата прошла',
+        'Доступ к главам 4–7 открыт навсегда. Возвращайся в бот — замочки исчезли, выбирай главу.',
+        '✓ Подтверждено',
+        true);
+      try { localStorage.removeItem('jk_last_order'); } catch(e){}
+      return; // больше не пуллим
+    }
+
+    if (attempts >= MAX_ATTEMPTS) {
+      setState('error',
+        'Оплата не подтвердилась',
+        'Если деньги списались, доступ всё равно откроется в течение нескольких минут — YooKassa иногда задерживает уведомление. Открой бота и проверь.',
+        'Не дождались подтверждения',
+        true);
+      return;
+    }
+
+    setTimeout(check, 5000);
+  } catch (e) {
+    if (attempts < MAX_ATTEMPTS) {
+      setTimeout(check, 5000);
+    } else {
+      setState('error',
+        'Ошибка проверки',
+        'Не получилось связаться с сервером. Если оплата прошла — доступ откроется автоматически, просто открой бота.',
+        'Ошибка: ' + e.message,
+        true);
+    }
+  }
+}
+
+check();
+</script>
 </body>
 </html>
