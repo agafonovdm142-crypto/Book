@@ -1,1 +1,1 @@
-Fix: run bot.py instead of poster.py
+python bot.pyc
