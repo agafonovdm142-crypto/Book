@@ -1,4 +1,4 @@
-[26-May-26 9:44 PM] Dmitriy Agafonov: #!/usr/bin/env python3
+#!/usr/bin/env python3
 import os, io, json, base64, logging, threading, asyncio, uuid, string, random, time
 from pathlib import Path
 from flask import Flask, request, jsonify
@@ -79,7 +79,7 @@ def chapter_kb():
     return InlineKeyboardMarkup(buttons)
 
 async def start(update, context):
-    await update.message.reply_text("📖 *Живая Книга*\\n\\nИнтерактивные истории.\\n\\n3 главы бесплатно. Главы 4–7 — 199₽.", parse_mode="Markdown", reply_markup=main_menu_kb(), disable_web_page_preview=True)
+    await update.message.reply_text("📖 *Живая Книга*\n\nИнтерактивные истории.\n\n3 главы бесплатно. Главы 4–7 — 199₽.", parse_mode="Markdown", reply_markup=main_menu_kb(), disable_web_page_preview=True)
 
 async def button(update, context):
     q = update.callback_query
@@ -87,11 +87,11 @@ async def button(update, context):
     d = q.data
     if d == "chapters":
         await q.edit_message_text("📖 Выбери главу:", reply_markup=chapter_kb())
-[26-May-26 9:44 PM] Dmitriy Agafonov: elif d == "main":
+    elif d == "main":
         await q.edit_message_text("📖 *Живая Книга*", parse_mode="Markdown", reply_markup=main_menu_kb())
     elif d in CHAPTERS:
         ch = CHAPTERS[d]
-        await q.edit_message_text(f"📖 *{ch['title']}*\\n\\n👉 [Читать]({ch['url']})", parse_mode="Markdown", disable_web_page_preview=True, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("▶️ Начать", url=ch["url"])], [InlineKeyboardButton("← Назад", callback_data="chapters")]]))
+        await q.edit_message_text(f"📖 *{ch['title']}*\n\n👉 [Читать]({ch['url']})", parse_mode="Markdown", disable_web_page_preview=True, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("▶️ Начать", url=ch["url"])], [InlineKeyboardButton("← Назад", callback_data="chapters")]]))
 
 def run_bot():
     async def bot_main():
@@ -106,7 +106,7 @@ def run_bot():
             await asyncio.sleep(3600)
     asyncio.run(bot_main())
 
-if name == "__main__":
+if __name__ == "__main__":
     if not TOKEN:
         logger.error("BOT_TOKEN not set!")
     else:
