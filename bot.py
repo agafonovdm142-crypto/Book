@@ -1,4 +1,4 @@
-[26-May-26 9:08 PM] Dmitriy Agafonov: #!/usr/bin/env python3
+[26-May-26 9:31 PM] Dmitriy Agafonov: #!/usr/bin/env python3
 import os, io, json, base64, logging, threading, asyncio, uuid, string, random, time
 from pathlib import Path
 from flask import Flask, request, jsonify
@@ -86,7 +86,7 @@ _orders_lock = threading.Lock()
 def _load_orders():
     if not ORDERS_FILE.exists(): return {}
     try: return json.loads(ORDERS_FILE.
-[26-May-26 9:08 PM] Dmitriy Agafonov: read_text(encoding="utf-8"))
+[26-May-26 9:31 PM] Dmitriy Agafonov: read_text(encoding="utf-8"))
     except: return {}
 
 def _save_orders(data):
@@ -135,7 +135,8 @@ def _mark_paid_and_notify(order_id):
         orders = _load_orders()
         rec = orders.get(order_id)
         if not rec or rec.get("paid"): return False
-        rec["paid"] = True; rec["paid_at"] = int(time.time())
+        rec["paid"] = True
+        rec["paid_at"] = int(time.time())
         _save_orders(orders)
     tg_user_id = rec.get("tg_user_id")
     if tg_user_id and TOKEN:
@@ -157,13 +158,16 @@ async def start(update, context):
     await update.message.reply_text("📖 *Живая Книга*\n\nИнтерактивные истории, где каждый выбор меняет всё.\n\n3 главы бесплатно. Главы 4–7 — 199₽.\n\nНажми кнопку ниже 👇", parse_mode="Markdown", reply_markup=main_menu_kb(), disable_web_page_preview=True)
 
 async def button(update, context):
-    q = update.callback_query; await q.answer(); d = q.data
+    q = update.callback_query
+    await q.answer()
+    d = q.data
     if d == "chapters": await q.edit_message_text("📖 Выбери главу:", reply_markup=chapter_kb())
     elif d == "main": await q.edit_message_text("📖 *Живая Книга*", parse_mode="Markdown", reply_markup=main_menu_kb())
     elif d == "stats_prompt": context.chat_data["awaiting"] = True; await q.edit_message_text("🔐 Введи пароль:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Назад", callback_data="main")]]))
     elif d in CHAPTERS:
-        ch = CHAPTERS[d]; await q.
-[26-May-26 9:08 PM] Dmitriy Agafonov: edit_message_text(f"📖 *{ch['title']}*\n\n👉 [{ch['title']}]({ch['url']})", parse_mode="Markdown", disable_web_page_preview=True, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("▶️ Начать чтение", url=ch["url"])], [InlineKeyboardButton("← Назад", callback_data="chapters")]]))
+        ch = CHAPTERS[d]
+        await q.
+[26-May-26 9:31 PM] Dmitriy Agafonov: edit_message_text(f"📖 *{ch['title']}*\n\n👉 [{ch['title']}]({ch['url']})", parse_mode="Markdown", disable_web_page_preview=True, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("▶️ Начать чтение", url=ch["url"])], [InlineKeyboardButton("← Назад", callback_data="chapters")]]))
 
 async def cmd_paid_list(update, context):
     user_id = update.effective_user.id
@@ -210,7 +214,5 @@ if name == "__main__":
     else:
         bot_thread = threading.Thread(target=run_bot, daemon=True); bot_thread.start()
         logger.info("Bot thread launched")
-      Add YooKassa API endpoints
         port = int(os.environ.get("PORT", 10000))
         app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
-      
