@@ -57,4 +57,5 @@ def handle_webhook(data):
         return True
     except:
         return False
-      Fix YooKassa credentials
+
+
