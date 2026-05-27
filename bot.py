@@ -42,7 +42,7 @@ AGAFON_CHANNEL = "agafon_pastyr"
 BOOK_CHANNEL = "zivaya_kniga1"
 
 # ─── CONFIG ───
-TOKEN = os.environ.get("BOT_TOKEN", "")
+TOKEN = os.environ.get("BOT_TOKEN", "8712020124:AAF_Ze10P7gd9rQktUX09PKYuqsalLnGNWs")
 ADMIN_PASSWORD = "121114"
 
 CHAPTERS = {
