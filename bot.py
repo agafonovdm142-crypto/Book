@@ -297,6 +297,45 @@ def yookassa_webhook():
     return jsonify({"status": "ok"}), 200
 
 
+# ════════════════════════════════════════════════════════════════════
+# ═══════════════ TIKTOK COOKIES HANDLER ════════════════════════════
+# ════════════════════════════════════════════════════════════════════
+
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Принимает cookies.json от админа для TikTok"""
+    user_id = update.effective_user.id
+    if user_id != ADMIN_TG_USER_ID:
+        await update.message.reply_text("⛔ Только админ может отправлять файлы.")
+        return
+    
+    document = update.message.document
+    if not document or not document.file_name.endswith('.json'):
+        await update.message.reply_text("❌ Отправьте файл .json (cookies)")
+        return
+    
+    try:
+        file = await context.bot.get_file(document.file_id)
+        cookies_path = Path(__file__).parent / "tiktok_cookies.json"
+        await file.download_to_drive(str(cookies_path))
+        
+        # Validate cookies
+        with open(cookies_path) as f:
+            cookies = json.load(f)
+        
+        await update.message.reply_text(
+            f"✅ Cookies получены!\n"
+            f"📊 Количество записей: {len(cookies)}\n"
+            f"💾 Сохранено: tiktok_cookies.json\n\n"
+            f"Авто-постинг TikTok активирован!\n"
+            f"1 видео в день в 15:00"
+        )
+        logger.info(f"TikTok cookies saved: {cookies_path}")
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка: {e}")
+        logger.error(f"Cookies error: {e}")
+
+
 # ─── BOT FUNCTIONS ───
 SITE_URL = "https://kt7ussahgizfm.kimi.page"
 
@@ -502,6 +541,7 @@ def run_bot():
         bot_app.add_handler(CommandHandler("paid", cmd_paid_list))    # NEW
         bot_app.add_handler(CommandHandler("grant", cmd_grant))       # NEW
         bot_app.add_handler(CallbackQueryHandler(button))
+        bot_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))  # TikTok cookies
         bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
         logger.info("Bot polling started!")
