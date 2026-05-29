@@ -379,12 +379,18 @@ async def cmd_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Ошибка генерации")
             return
         save_current_video(video_path, description, scene)
+        # Отправляем видео без caption
         with open(video_path, 'rb') as f:
-            await update.message.reply_video(
-                video=f,
-                caption=f"📖 *{scene['chapter']}*\n\n📝 *Описание:*\n{description[:300]}...\n\n✅ /approve — опубликовать\n❌ /reject — другое",
-                parse_mode="Markdown",
-            )
+            await update.message.reply_video(video=f)
+        # Отправляем описание отдельным сообщением
+        await update.message.reply_text(
+            f"📖 *{scene['chapter']}*\n\n"
+            f"📝 *Описание для TikTok:*\n"
+            f"{description}\n\n"
+            f"✅ /approve — опубликовать\n"
+            f"❌ /reject — сгенерировать другое",
+            parse_mode="Markdown",
+        )
     except Exception as e:
         logger.error(f"Preview error: {e}")
         await update.message.reply_text(f"❌ Ошибка: {e}")
