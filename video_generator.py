@@ -127,7 +127,7 @@ def generate_video(scene: dict, date_str: str) -> Path:
         
         print(f"[VIDEO_GEN] Running ffmpeg...")
         
-        # Запускаем ffmpeg в отдельном потоке (не блокирует event loop бота)
+        # Запускаем ffmpeg в отдельном потоке (не блокирует event loop)
         def run_ffmpeg_sync(command, out_path):
             try:
                 r = subprocess.run(command, capture_output=True, text=True, timeout=20)
@@ -141,13 +141,12 @@ def generate_video(scene: dict, date_str: str) -> Path:
             except Exception as e:
                 return -1, str(e)[:200]
         
-        loop = asyncio.get_event_loop()
+        # Используем await (asyncio-friendly)
+        import asyncio
         
-        # Пробуем с текстом
-        rc, msg = loop.run_in_executor(None, run_ffmpeg_sync, cmd, output_file).result()
+        rc, msg = await asyncio.get_event_loop().run_in_executor(None, run_ffmpeg_sync, cmd, output_file)
         print(f"[VIDEO_GEN] drawtext: rc={rc}, msg={msg[:100]}")
         
-        # Если не удалось — пробуем без текста
         if rc != 0:
             print("[VIDEO_GEN] Trying without text...")
             cmd_simple = [
@@ -159,7 +158,7 @@ def generate_video(scene: dict, date_str: str) -> Path:
                 "-t", str(duration),
                 str(output_file)
             ]
-            rc, msg = loop.run_in_executor(None, run_ffmpeg_sync, cmd_simple, output_file).result()
+            rc, msg = await asyncio.get_event_loop().run_in_executor(None, run_ffmpeg_sync, cmd_simple, output_file)
             print(f"[VIDEO_GEN] no-text: rc={rc}, msg={msg[:100]}")
         
         if rc != 0:
