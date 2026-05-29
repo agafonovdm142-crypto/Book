@@ -73,78 +73,87 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 def generate_video(scene: dict, date_str: str) -> Path:
     """Генерирует видео из сцены"""
+    print(f"[VIDEO_GEN] Start: {scene['id']}")
     output_file = OUTPUT_DIR / f"video_{date_str}_{scene['id']}.mp4"
     
-    # Вертикальное видео 1080x1920, 15 секунд
-    duration = 15
-    
-    # Разбиваем текст на строки (макс 15 символов)
-    lines = textwrap.wrap(scene["text"], width=28)
-    text_formatted = "\\n".join(lines[:6])  # макс 6 строк
-    
-    # Случайный фоновый цвет (тёплые тона)
-    colors = ["#1a0a0a", "#0d0d1a", "#1a1005", "#0a1a0a", "#1a0a12"]
-    bg_color = random.choice(colors)
-    
-    # Ищем шрифт (fallback на разные системы)
-    font_paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",  # Mac
-        "C:/Windows/Fonts/arial.ttf",  # Windows
-    ]
-    font_file = None
-    for fp in font_paths:
-        if os.path.exists(fp):
-            font_file = fp
-            break
-    
-    if not font_file:
-        # Если нет шрифтов - используем встроенный
-        print("⚠️  No fonts found, using default")
-        font_file = "DejaVuSans"
-    
-    # Собираем ffmpeg команду
-    cmd = [
-        "ffmpeg", "-y",
-        "-f", "lavfi",
-        "-i", f"color=c={bg_color}:s=1080x1920:d={duration}",
-        "-vf",
-        f"drawtext=fontfile={font_file}:"
-        f"text='{text_formatted}':"
-        f"fontcolor=#f5ede4:fontsize=42:"
-        f"x=(w-text_w)/2:y=(h-text_h)/2-50:"
-        f"line_spacing=18:"
-        f"alpha='if(lt(t,1),t/1,if(lt(t,{duration}-1),1,({duration}-t)/1))'",
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
-        "-t", str(duration),
-        str(output_file)
-    ]
-    
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-    
-    if result.returncode != 0:
-        print(f"FFmpeg error: {result.stderr[:200]}")
-        # Fallback: видео без текста
-        cmd_simple = [
+    try:
+        # Вертикальное видео 1080x1920, 15 секунд
+        duration = 15
+        
+        # Разбиваем текст на строки
+        lines = textwrap.wrap(scene["text"], width=28)
+        text_formatted = "\\n".join(lines[:6])
+        print(f"[VIDEO_GEN] Text lines: {len(lines)}")
+        
+        # Случайный фон
+        colors = ["#1a0a0a", "#0d0d1a", "#1a1005", "#0a1a0a", "#1a0a12"]
+        bg_color = random.choice(colors)
+        
+        # Ищем шрифт
+        font_paths = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        ]
+        font_file = None
+        for fp in font_paths:
+            if os.path.exists(fp):
+                font_file = fp
+                break
+        
+        if not font_file:
+            print("[VIDEO_GEN] No font found, using default")
+            font_file = "DejaVuSans"
+        else:
+            print(f"[VIDEO_GEN] Font: {font_file}")
+        
+        # FFmpeg cmd
+        cmd = [
             "ffmpeg", "-y",
             "-f", "lavfi",
             "-i", f"color=c={bg_color}:s=1080x1920:d={duration}",
+            "-vf",
+            f"drawtext=fontfile={font_file}:"
+            f"text='{text_formatted}':"
+            f"fontcolor=#f5ede4:fontsize=42:"
+            f"x=(w-text_w)/2:y=(h-text_h)/2-50:"
+            f"line_spacing=18:"
+            f"alpha='if(lt(t,1),t/1,if(lt(t,{duration}-1),1,({duration}-t)/1))'",
             "-c:v", "libx264",
             "-pix_fmt", "yuv420p",
             "-movflags", "+faststart",
             "-t", str(duration),
             str(output_file)
         ]
-        result2 = subprocess.run(cmd_simple, capture_output=True, text=True, timeout=60)
-        if result2.returncode != 0:
-            print(f"Fallback error: {result2.stderr[:200]}")
-            return None
-        print("⚠️  Generated video without text (font issue)")
-    
-    return output_file
+        
+        print(f"[VIDEO_GEN] Running ffmpeg...")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        print(f"[VIDEO_GEN] ffmpeg rc={result.returncode}")
+        
+        if result.returncode != 0:
+            print(f"[VIDEO_GEN] ffmpeg err: {result.stderr[:300]}")
+            # Fallback без текста
+            cmd_simple = [
+                "ffmpeg", "-y",
+                "-f", "lavfi",
+                "-i", f"color=c={bg_color}:s=1080x1920:d={duration}",
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-t", str(duration),
+                str(output_file)
+            ]
+            print(f"[VIDEO_GEN] Fallback (no text)...")
+            result2 = subprocess.run(cmd_simple, capture_output=True, text=True, timeout=60)
+            print(f"[VIDEO_GEN] fallback rc={result2.returncode}")
+            if result2.returncode != 0:
+                print(f"[VIDEO_GEN] fallback err: {result2.stderr[:300]}")
+                return None
+        
+        print(f"[VIDEO_GEN] Done: {output_file} ({output_file.stat().st_size} bytes)")
+        return output_file
+        
+    except Exception as e:
+        print(f"[VIDEO_GEN] EXCEPTION: {type(e).__name__}: {e}")
+        return None
     
     return output_file
 
@@ -174,20 +183,34 @@ def generate_description(scene: dict) -> str:
 
 def generate_daily_content():
     """Генерирует контент на день"""
-    date_str = datetime.now().strftime("%Y%m%d")
-    scene = random.choice(SCENES)
+    print("[DAILY] Starting generate_daily_content()")
     
-    print(f"🎬 Генерация видео: {scene['chapter']} — {scene['id']}")
-    
-    # Генерируем видео
-    video_path = generate_video(scene, date_str)
-    if not video_path:
+    try:
+        date_str = datetime.now().strftime("%Y%m%d")
+        scene = random.choice(SCENES)
+        print(f"[DAILY] Selected scene: {scene['id']} from {scene['chapter']}")
+        
+        # Генерируем видео
+        print(f"[DAILY] Calling generate_video()...")
+        video_path = generate_video(scene, date_str)
+        
+        if not video_path:
+            print("[DAILY] generate_video returned None!")
+            return None, None, None
+        
+        print(f"[DAILY] Video OK: {video_path}")
+        
+        # Генерируем описание
+        description = generate_description(scene)
+        print(f"[DAILY] Description OK: {len(description)} chars")
+        
+        return video_path, description, scene
+        
+    except Exception as e:
+        print(f"[DAILY] EXCEPTION: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         return None, None, None
-    
-    # Генерируем описание
-    description = generate_description(scene)
-    
-    return video_path, description, scene
 
 
 if __name__ == "__main__":
