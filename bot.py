@@ -71,6 +71,24 @@ def index():
 def health():
     return {"status": "ok", "bot": "running"}
 
+@app.route("/api/generate-video")
+def generate_video_endpoint():
+    """Синхронная генерация видео (Flask thread, не блокирует бота)"""
+    import video_generator
+    try:
+        video_path, description, scene = video_generator.generate_daily_content()
+        if video_path and video_path.exists():
+            return {
+                "status": "ok",
+                "video_path": str(video_path),
+                "chapter": scene["chapter"],
+                "description": description,
+            }
+        return {"status": "error", "message": "video not generated"}
+    except Exception as e:
+        import traceback
+        return {"status": "error", "message": str(e), "trace": traceback.format_exc()}
+
 @app.route("/api/yookassa/diag")
 def yookassa_diag():
     """Диагностика credentials (безопасно — не показываем ключи)"""
@@ -409,41 +427,39 @@ async def cmd_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ Только админ.")
         return
     
-    status_msg = await update.message.reply_text("🎬 Генерирую видео... (шаг 1/5)")
+    status_msg = await update.message.reply_text("🎬 Генерирую видео через API...")
     
     try:
-        # Шаг 1: Генерация
-        await status_msg.edit_text("🎬 Шаг 1/5: Генерация контента...")
-        video_path, description, scene = video_generator.generate_daily_content()
+        # Вызываем Flask endpoint через HTTP (не блокирует event loop)
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get("http://localhost:10000/api/generate-video", timeout=60) as resp:
+                data = await resp.json()
         
-        if not video_path:
-            await status_msg.edit_text("❌ Шаг 1: Видео не сгенерировалось\nПроверьте /debug")
+        if data.get("status") != "ok":
+            error = data.get("message", "unknown error")
+            await status_msg.edit_text(f"❌ Ошибка генерации: {error}")
             return
         
-        # Шаг 2: Проверка файла
-        await status_msg.edit_text("🎬 Шаг 2/5: Проверка файла...")
+        video_path = Path(data["video_path"])
+        description = data["description"]
+        chapter = data["chapter"]
+        
         if not video_path.exists():
-            await status_msg.edit_text(f"❌ Шаг 2: Файл не найден: {video_path}")
+            await status_msg.edit_text(f"❌ Файл не найден: {video_path}")
             return
         
-        file_size = video_path.stat().st_size
-        if file_size == 0:
-            await status_msg.edit_text("❌ Шаг 2: Файл пустой (0 байт)")
-            return
-        
-        # Шаг 3: Сохранение
-        await status_msg.edit_text(f"🎬 Шаг 3/5: Сохранение ({file_size//1024} KB)...")
+        # Сохраняем для approve/reject
+        scene = {"chapter": chapter, "id": "api", "text": "", "hook": ""}
         save_current_video(video_path, description, scene)
         
-        # Шаг 4: Отправка видео
-        await status_msg.edit_text("🎬 Шаг 4/5: Отправка видео...")
+        # Отправляем
+        await status_msg.edit_text("🎬 Отправка видео...")
         with open(video_path, 'rb') as f:
             await update.message.reply_video(video=f)
         
-        # Шаг 5: Описание
-        await status_msg.edit_text("🎬 Шаг 5/5: Готово!")
         await update.message.reply_text(
-            f"📖 *{scene['chapter']}*\n\n"
+            f"📖 *{chapter}*\n\n"
             f"📝 *Описание для TikTok:*\n"
             f"{description}\n\n"
             f"✅ /approve — опубликовать\n"
@@ -452,7 +468,7 @@ async def cmd_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
     except Exception as e:
-        error_msg = f"❌ Ошибка на шаге:\n{type(e).__name__}: {str(e)[:200]}"
+        error_msg = f"❌ Ошибка:\n{type(e).__name__}: {str(e)[:200]}"
         logger.error(f"PREVIEW ERROR: {error_msg}")
         try:
             await status_msg.edit_text(error_msg)
