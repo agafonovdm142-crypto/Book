@@ -86,13 +86,31 @@ def generate_video(scene: dict, date_str: str) -> Path:
     colors = ["#1a0a0a", "#0d0d1a", "#1a1005", "#0a1a0a", "#1a0a12"]
     bg_color = random.choice(colors)
     
+    # Ищем шрифт (fallback на разные системы)
+    font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",  # Mac
+        "C:/Windows/Fonts/arial.ttf",  # Windows
+    ]
+    font_file = None
+    for fp in font_paths:
+        if os.path.exists(fp):
+            font_file = fp
+            break
+    
+    if not font_file:
+        # Если нет шрифтов - используем встроенный
+        print("⚠️  No fonts found, using default")
+        font_file = "DejaVuSans"
+    
     # Собираем ffmpeg команду
     cmd = [
         "ffmpeg", "-y",
         "-f", "lavfi",
         "-i", f"color=c={bg_color}:s=1080x1920:d={duration}",
         "-vf",
-        f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:"
+        f"drawtext=fontfile={font_file}:"
         f"text='{text_formatted}':"
         f"fontcolor=#f5ede4:fontsize=42:"
         f"x=(w-text_w)/2:y=(h-text_h)/2-50:"
@@ -109,7 +127,24 @@ def generate_video(scene: dict, date_str: str) -> Path:
     
     if result.returncode != 0:
         print(f"FFmpeg error: {result.stderr[:200]}")
-        return None
+        # Fallback: видео без текста
+        cmd_simple = [
+            "ffmpeg", "-y",
+            "-f", "lavfi",
+            "-i", f"color=c={bg_color}:s=1080x1920:d={duration}",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            "-t", str(duration),
+            str(output_file)
+        ]
+        result2 = subprocess.run(cmd_simple, capture_output=True, text=True, timeout=60)
+        if result2.returncode != 0:
+            print(f"Fallback error: {result2.stderr[:200]}")
+            return None
+        print("⚠️  Generated video without text (font issue)")
+    
+    return output_file
     
     return output_file
 
