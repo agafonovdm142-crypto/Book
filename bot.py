@@ -427,53 +427,29 @@ async def cmd_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ Только админ.")
         return
     
-    status_msg = await update.message.reply_text("🎬 Генерирую видео через API...")
+    # Упрощённая версия — просто показываем текст сцены
+    scene = random.choice(video_generator.SCENES)
+    description = video_generator.generate_description(scene)
     
-    try:
-        # Вызываем Flask endpoint через HTTP (не блокирует event loop)
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.get("http://localhost:10000/api/generate-video", timeout=60) as resp:
-                data = await resp.json()
-        
-        if data.get("status") != "ok":
-            error = data.get("message", "unknown error")
-            await status_msg.edit_text(f"❌ Ошибка генерации: {error}")
-            return
-        
-        video_path = Path(data["video_path"])
-        description = data["description"]
-        chapter = data["chapter"]
-        
-        if not video_path.exists():
-            await status_msg.edit_text(f"❌ Файл не найден: {video_path}")
-            return
-        
-        # Сохраняем для approve/reject
-        scene = {"chapter": chapter, "id": "api", "text": "", "hook": ""}
-        save_current_video(video_path, description, scene)
-        
-        # Отправляем
-        await status_msg.edit_text("🎬 Отправка видео...")
-        with open(video_path, 'rb') as f:
-            await update.message.reply_video(video=f)
-        
-        await update.message.reply_text(
-            f"📖 *{chapter}*\n\n"
-            f"📝 *Описание для TikTok:*\n"
-            f"{description}\n\n"
-            f"✅ /approve — опубликовать\n"
-            f"❌ /reject — сгенерировать другое",
-            parse_mode="Markdown",
-        )
-        
-    except Exception as e:
-        error_msg = f"❌ Ошибка:\n{type(e).__name__}: {str(e)[:200]}"
-        logger.error(f"PREVIEW ERROR: {error_msg}")
-        try:
-            await status_msg.edit_text(error_msg)
-        except:
-            await update.message.reply_text(error_msg)
+    # Сохраняем "заглушку" для approve (без видео — просто текст)
+    save_current_video(
+        Path("/tmp/no_video_yet.mp4"),  # placeholder
+        description,
+        scene
+    )
+    
+    await update.message.reply_text(
+        f"📖 *{scene['chapter']}*\n\n"
+        f"📝 *Текст сцены:*\n"
+        f"{scene['text']}\n\n"
+        f"🎯 *Хук для видео:*\n"
+        f"{scene['hook']}\n\n"
+        f"📝 *Описание для TikTok:*\n"
+        f"{description}\n\n"
+        f"✅ /approve — сгенерировать и опубликовать\n"
+        f"❌ /reject — другая сцена",
+        parse_mode="Markdown",
+    )
 
 
 async def cmd_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
