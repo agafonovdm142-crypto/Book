@@ -1,255 +1,120 @@
 #!/usr/bin/env python3
 """
-Живая Книга — Telegram Bot (Flask + Polling hybrid)
-Flask opens port (Render happy) + PTB 21 polling (bot works)
-Python 3.14 compatible — asyncio.run() + threading
-
-С добавленной поддержкой СБП-оплаты (самозанятый + Т-Банк):
-  POST /api/sbp/create-order  — выпуск order_id + QR
-  GET  /api/sbp/check         — проверка статуса заказа (фронт пуллит)
-  Telegram: /paid              — список ожидающих заказов
-  Telegram: /grant JK-XXXXXX   — ручное подтверждение оплаты
+Живая Книга — Telegram Bot
+Стабильная версия: главы, paywall, постинг в каналы
 """
-
-import os
-import io
-import json
-import base64
-import logging
-import threading
-import asyncio
-import uuid
-import string
-import random
-import time
-import re
+import os, io, json, base64, logging, threading, asyncio, uuid, string, random, time, hashlib
 from pathlib import Path
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, Bot
-from telegram.ext import (
-    Application, CommandHandler, CallbackQueryHandler,
-    ContextTypes, MessageHandler, filters
-)
-
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 import qrcode
 import requests
-import yookassa  # ЮKassa integration
 
-# ─── CHANNELS ───
-AGAFON_CHANNEL = "agafon_pastyr"
-BOOK_CHANNEL = "zivaya_kniga"
+# ═══════════════════════════════════════════════
+# CONFIG
+# ═══════════════════════════════════════════════
 
-# ─── CONFIG ───
 TOKEN = "8712020124:AAF_Ze10P7gd9rQktUX09PKYuqsalLnGNWs"
 ADMIN_PASSWORD = "121114"
+ADMIN_TG_USER_ID = int(os.environ.get("ADMIN_TG_USER_ID", "0") or "0")
+AGAFON_CHANNEL = "agafon_pastyr"
+BOOK_CHANNEL = "zivaya_kniga"
+SITE_URL = "https://kt7ussahgizfm.kimi.page"
 
 CHAPTERS = {
-    "ch1": {"title": "Глава 1 — Субботнее утро", "url": "https://kt7ussahgizfm.kimi.page/stories/01-subbotnee-utro/index.html"},
-    "ch2": {"title": "Глава 2 — Вечер с Максом", "url": "https://kt7ussahgizfm.kimi.page/stories/02-vecher-s-maksom/index.html"},
-    "ch3": {"title": "Глава 3 — Ночь с Лёшей", "url": "https://kt7ussahgizfm.kimi.page/stories/03-noch-s-leshey/index.html"},
-    "ch4": {"title": "Глава 4 — Мастерская Артёма", "url": "https://kt7ussahgizfm.kimi.page/stories/04-masterskaya-artema/index.html"},
-    "ch5": {"title": "Глава 5 — Воскресенье", "url": "https://kt7ussahgizfm.kimi.page/stories/05-voskresene/index.html"},
-    "ch6": {"title": "Глава 6 — Властный", "url": "https://kt7ussahgizfm.kimi.page/stories/06-vlastnyy/index.html"},
-    "ch7": {"title": "Глава 7 — Шибари-мастер", "url": "https://kt7ussahgizfm.kimi.page/stories/07-shibari/index.html"},
+    "ch1": {"title": "Глава 1 — Субботнее утро", "url": f"{SITE_URL}/stories/01-subbotnee-utro/index.html"},
+    "ch2": {"title": "Глава 2 — Вечер с Максом", "url": f"{SITE_URL}/stories/02-vecher-s-maksom/index.html"},
+    "ch3": {"title": "Глава 3 — Ночь с Лёшей", "url": f"{SITE_URL}/stories/03-noch-s-leshey/index.html"},
+    "ch4": {"title": "Глава 4 — Мастерская Артёма", "url": f"{SITE_URL}/stories/04-masterskaya-artema/index.html"},
+    "ch5": {"title": "Глава 5 — Воскресенье", "url": f"{SITE_URL}/stories/05-voskresene/index.html"},
+    "ch6": {"title": "Глава 6 — Властный", "url": f"{SITE_URL}/stories/06-vlastnyy/index.html"},
+    "ch7": {"title": "Глава 7 — Шибари-мастер", "url": f"{SITE_URL}/stories/07-shibari/index.html"},
 }
+
+PAID_KEYS = {"ch4", "ch5", "ch6", "ch7"}
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ─── FLASK (port for Render) ───
 app = Flask(__name__)
-# Разрешаем CORS для /api/* — pay.html живёт на kimi.page, бьёт сюда
 CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+# ═══════════════════════════════════════════════
+# YOOKASSA
+# ═══════════════════════════════════════════════
+
+import yookassa
 
 @app.route("/")
 def index():
-    return "✅ Живая Книга Bot is running! <a href='https://t.me/Jivaya_kniga_bot'>Open Bot</a>"
+    return "Живая Книга Bot is running. <a href='https://t.me/Jivaya_kniga_bot'>Open Bot</a>"
 
 @app.route("/health")
 def health():
     return {"status": "ok", "bot": "running"}
 
-@app.route("/api/generate-video")
-def generate_video_endpoint():
-    """Синхронная генерация видео (Flask thread, не блокирует бота)"""
-    import video_generator
-    try:
-        video_path, description, scene = video_generator.generate_daily_content()
-        if video_path and video_path.exists():
-            return {
-                "status": "ok",
-                "video_path": str(video_path),
-                "chapter": scene["chapter"],
-                "description": description,
-            }
-        return {"status": "error", "message": "video not generated"}
-    except Exception as e:
-        import traceback
-        return {"status": "error", "message": str(e), "trace": traceback.format_exc()}
+@app.route("/api/yookassa/create-payment", methods=["POST"])
+def yookassa_create_payment():
+    body = request.get_json(silent=True) or {}
+    amount = int(body.get("amount", 199))
+    tg_user_id = body.get("tg_user_id")
+    return_url = body.get("return_url", f"{SITE_URL}/success.html")
+    result = yookassa.create_payment(amount=amount, description="Живая Книга — Полный доступ", return_url=return_url, metadata={"tg_user_id": str(tg_user_id) if tg_user_id else ""})
+    return jsonify(result)
 
-@app.route("/api/yookassa/diag")
-def yookassa_diag():
-    """Диагностика credentials (безопасно — не показываем ключи)"""
-    import hashlib
-    sid = os.environ.get("YOOKASSA_SHOP_ID", "")
-    sk = os.environ.get("YOOKASSA_SECRET_KEY", "")
-    return {
-        "shop_id_set": bool(sid),
-        "shop_id_len": len(sid),
-        "shop_id_hash": hashlib.md5(sid.encode()).hexdigest()[:8] if sid else "empty",
-        "shop_id_first3": sid[:3] if sid else "",
-        "shop_id_has_space": " " in sid,
-        "secret_key_set": bool(sk),
-        "secret_key_len": len(sk),
-        "secret_key_prefix": sk[:6] if sk else "",
-        "test_mode": os.environ.get("YOOKASSA_TEST_MODE", "not_set"),
-    }
+@app.route("/api/yookassa/check", methods=["GET"])
+def yookassa_check():
+    payment_id = request.args.get("payment_id", "")
+    if not payment_id:
+        return jsonify({"error": "payment_id required"}), 400
+    result = yookassa.check_payment(payment_id)
+    return jsonify(result)
 
-# ════════════════════════════════════════════════════════════════════
-# ═══════════════ СБП-ОПЛАТА (самозанятый) ═══════════════════════════
-# ════════════════════════════════════════════════════════════════════
+@app.route("/api/yookassa/webhook", methods=["POST"])
+def yookassa_webhook():
+    data = request.get_json(silent=True) or {}
+    yookassa.handle_webhook(data)
+    return jsonify({"status": "ok"}), 200
 
-SBP_PHONE            = os.environ.get("SBP_PHONE", "")
-SBP_RECIPIENT_NAME   = os.environ.get("SBP_RECIPIENT_NAME", "Получатель")
-SBP_AMOUNT_DEFAULT   = int(os.environ.get("SBP_AMOUNT", "199"))
-ADMIN_TG_USER_ID     = int(os.environ.get("ADMIN_TG_USER_ID", "0") or "0")
-MY_INN               = os.environ.get("MY_INN", "")
+# ═══════════════════════════════════════════════
+# SBP (запасной вариант)
+# ═══════════════════════════════════════════════
 
-# Банковские реквизиты (запасной канал)
-BANK_RECIPIENT_NAME  = os.environ.get("BANK_RECIPIENT_NAME", "")
-BANK_ACCOUNT         = os.environ.get("BANK_ACCOUNT", "")
-BANK_BIK             = os.environ.get("BANK_BIK", "")
-BANK_NAME            = os.environ.get("BANK_NAME", "")
-BANK_CORR            = os.environ.get("BANK_CORR", "")
-BANK_INN             = os.environ.get("BANK_INN", "")
-BANK_KPP             = os.environ.get("BANK_KPP", "")
-BANK_AGREEMENT       = os.environ.get("BANK_AGREEMENT", "")
-
+SBP_PHONE = os.environ.get("SBP_PHONE", "")
+SBP_RECIPIENT_NAME = os.environ.get("SBP_RECIPIENT_NAME", "Получатель")
+SBP_AMOUNT_DEFAULT = int(os.environ.get("SBP_AMOUNT", "199"))
 ORDERS_FILE = Path(__file__).parent / "orders.json"
 _orders_lock = threading.Lock()
 
-
-def _load_orders() -> dict:
+def _load_orders():
     if not ORDERS_FILE.exists():
         return {}
     try:
         return json.loads(ORDERS_FILE.read_text(encoding="utf-8"))
-    except Exception as e:
-        logger.error(f"orders.json corrupted: {e}")
+    except:
         return {}
 
-
-def _save_orders(data: dict) -> None:
+def _save_orders(data):
     ORDERS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
+def _new_order_id():
+    return "JK-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
-def _new_order_id() -> str:
-    """JK-A7K2X1 — 6 случайных uppercase символов"""
-    alphabet = string.ascii_uppercase + string.digits
-    suffix = "".join(random.choices(alphabet, k=6))
-    return f"JK-{suffix}"
-
-
-def _qr_png_base64(payload: str) -> str:
-    """PNG QR-код → base64 data URI"""
+def _qr_png_base64(payload):
     img = qrcode.make(payload)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
-
-def _sbp_payload(amount: int, comment: str) -> str:
-    """Текст внутри QR — читабельный, банки могут распознать как «перевод по СБП»."""
-    return (
-        f"СБП перевод\n"
-        f"Получатель: {SBP_RECIPIENT_NAME}\n"
-        f"Телефон: {SBP_PHONE}\n"
-        f"Сумма: {amount} руб\n"
-        f"Комментарий: {comment}"
-    )
-
-
-def is_tg_user_paid(tg_user_id: int) -> bool:
-    """Проверка для bot.py: купил ли этот TG-юзер доступ."""
-    for record in _load_orders().values():
-        if record.get("paid") and record.get("tg_user_id") == tg_user_id:
+def is_tg_user_paid(tg_user_id):
+    for r in _load_orders().values():
+        if r.get("paid") and r.get("tg_user_id") == tg_user_id:
             return True
     return False
 
-
-@app.route("/api/sbp/create-order", methods=["POST"])
-def sbp_create_order():
-    if not SBP_PHONE:
-        return jsonify({"error": "SBP_PHONE не задан в переменных окружения Render"}), 500
-
-    body = request.get_json(silent=True) or {}
-    amount = int(body.get("amount", SBP_AMOUNT_DEFAULT))
-    tg_user_id = body.get("tg_user_id")
-
-    order_id = _new_order_id()
-    qr = _qr_png_base64(_sbp_payload(amount, order_id))
-
-    with _orders_lock:
-        orders = _load_orders()
-        orders[order_id] = {
-            "order_id": order_id,
-            "amount": amount,
-            "comment": order_id,
-            "tg_user_id": tg_user_id,
-            "paid": False,
-            "created_at": int(time.time()),
-            "paid_at": None,
-            "receipt_url": None,
-        }
-        _save_orders(orders)
-
-    # Банковские реквизиты для запасного канала (если настроены)
-    bank_info = None
-    if BANK_ACCOUNT:
-        purpose = (
-            f"Перевод средств по договору {BANK_AGREEMENT} "
-            f"{BANK_RECIPIENT_NAME} НДС не облагается. "
-            f"Код заказа: {order_id}"
-        ) if BANK_AGREEMENT else f"Оплата заказа {order_id}. НДС не облагается"
-
-        bank_info = {
-            "recipient_name":   BANK_RECIPIENT_NAME,
-            "account":          BANK_ACCOUNT,
-            "bik":              BANK_BIK,
-            "bank_name":        BANK_NAME,
-            "corr_account":     BANK_CORR,
-            "inn":              BANK_INN,
-            "kpp":              BANK_KPP,
-            "purpose_template": purpose,
-        }
-
-    logger.info(f"SBP order created: {order_id}, tg={tg_user_id}, amount={amount}")
-    return jsonify({
-        "order_id": order_id,
-        "amount": amount,
-        "qr_image": qr,
-        "recipient_name": SBP_RECIPIENT_NAME,
-        "recipient_phone": SBP_PHONE,
-        "comment": order_id,
-        "bank": bank_info,
-    })
-
-
-@app.route("/api/sbp/check", methods=["GET"])
-def sbp_check():
-    order_id = request.args.get("order_id", "")
-    rec = _load_orders().get(order_id)
-    if not rec:
-        return jsonify({"paid": False, "error": "not_found"})
-    return jsonify({
-        "paid": bool(rec.get("paid")),
-        "receipt_url": rec.get("receipt_url"),
-    })
-
-
-def _mark_paid_and_notify(order_id: str) -> bool:
+def _mark_paid_and_notify(order_id, bot_token=None):
     with _orders_lock:
         orders = _load_orders()
         rec = orders.get(order_id)
@@ -258,238 +123,20 @@ def _mark_paid_and_notify(order_id: str) -> bool:
         rec["paid"] = True
         rec["paid_at"] = int(time.time())
         _save_orders(orders)
-
     tg_user_id = rec.get("tg_user_id")
-    if tg_user_id and TOKEN:
+    if tg_user_id and bot_token:
         try:
-            Bot(token=TOKEN).send_message(
+            Bot(token=bot_token).send_message(
                 chat_id=tg_user_id,
-                text=(
-                    "Оплата получена. Доступ к главам 4-6 открыт.\n\n"
-                    "Открой бота → меню → выбери главу."
-                ),
+                text="✅ Оплата получена! Доступ к главам 4-7 открыт.\n\n👉 t.me/Jivaya_kniga_bot"
             )
-        except Exception as e:
-            logger.warning(f"notify tg {tg_user_id} failed: {e}")
-
-    logger.info(f"Order {order_id} marked PAID")
+        except:
+            pass
     return True
 
-
-# ════════════════════════════════════════════════════════════════════
-# ═══════════════ ЮKASSA ИНТЕГРАЦИЯ ════════════════════════════════
-# ════════════════════════════════════════════════════════════════════
-
-@app.route("/api/yookassa/create-payment", methods=["POST"])
-def yookassa_create_payment():
-    """Создание платежа через ЮKassa API v3"""
-    body = request.get_json(silent=True) or {}
-    amount = int(body.get("amount", 199))
-    tg_user_id = body.get("tg_user_id")
-    return_url = body.get("return_url", f"{SITE_URL}/success.html")
-    
-    result = yookassa.create_payment(
-        amount=amount,
-        description="Живая Книга — Полный доступ",
-        return_url=return_url,
-        metadata={"tg_user_id": str(tg_user_id) if tg_user_id else ""}
-    )
-    return jsonify(result)
-
-
-@app.route("/api/yookassa/check", methods=["GET"])
-def yookassa_check():
-    """Проверка статуса платежа ЮKassa"""
-    payment_id = request.args.get("payment_id", "")
-    if not payment_id:
-        return jsonify({"error": "payment_id required"}), 400
-    result = yookassa.check_payment(payment_id)
-    return jsonify(result)
-
-
-@app.route("/api/yookassa/webhook", methods=["POST"])
-def yookassa_webhook():
-    """Webhook от ЮKassa — уведомления о статусе платежа"""
-    data = request.get_json(silent=True) or {}
-    yookassa.handle_webhook(data)
-    return jsonify({"status": "ok"}), 200
-
-
-# ════════════════════════════════════════════════════════════════════
-# ═══════════════ TIKTOK COOKIES HANDLER ════════════════════════════
-# ════════════════════════════════════════════════════════════════════
-
-async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Принимает cookies.json от админа для TikTok"""
-    user_id = update.effective_user.id
-    if user_id != ADMIN_TG_USER_ID:
-        await update.message.reply_text("⛔ Только админ может отправлять файлы.")
-        return
-    
-    document = update.message.document
-    if not document or not document.file_name.endswith('.json'):
-        await update.message.reply_text("❌ Отправьте файл .json (cookies)")
-        return
-    
-    try:
-        file = await context.bot.get_file(document.file_id)
-        cookies_path = Path(__file__).parent / "tiktok_cookies.json"
-        await file.download_to_drive(str(cookies_path))
-        
-        # Validate cookies
-        with open(cookies_path) as f:
-            cookies = json.load(f)
-        
-        await update.message.reply_text(
-            f"✅ Cookies получены!\n"
-            f"📊 Количество записей: {len(cookies)}\n"
-            f"💾 Сохранено: tiktok_cookies.json\n\n"
-            f"Авто-постинг TikTok активирован!\n"
-            f"1 видео в день в 15:00"
-        )
-        logger.info(f"TikTok cookies saved: {cookies_path}")
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Ошибка: {e}")
-        logger.error(f"Cookies error: {e}")
-
-
-# ════════════════════════════════════════════════════════════════════
-# ═══════════════ VIDEO PREVIEW / APPROVE / REJECT ══════════════════
-# ════════════════════════════════════════════════════════════════════
-
-import video_generator
-
-CURRENT_VIDEO_FILE = Path(__file__).parent / "current_video.json"
-
-
-def save_current_video(video_path, description, scene):
-    data = {
-        "video_path": str(video_path),
-        "description": description,
-        "scene_id": scene["id"],
-        "chapter": scene["chapter"],
-        "text": scene["text"],
-        "hook": scene["hook"],
-        "status": "pending",
-    }
-    CURRENT_VIDEO_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def load_current_video():
-    if not CURRENT_VIDEO_FILE.exists():
-        return None
-    try:
-        return json.loads(CURRENT_VIDEO_FILE.read_text(encoding="utf-8"))
-    except:
-        return None
-
-
-async def cmd_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Тестовая команда — проверяет что бот работает"""
-    await update.message.reply_text("✅ Бот работает!\n\nКоманды:\n/preview — показать видео\n/approve — опубликовать\n/reject — другое видео\n/test — проверить бота")
-
-
-async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Диагностика системы"""
-    import shutil, subprocess, sys
-    lines = ["🔧 ДИАГНОСТИКА:"]
-    
-    # Проверяем ffmpeg
-    ffmpeg_path = shutil.which("ffmpeg")
-    lines.append(f"ffmpeg: {'✅ ' + ffmpeg_path if ffmpeg_path else '❌ не найден'}")
-    
-    # Проверяем video_generator.py
-    vg_path = Path(__file__).parent / "video_generator.py"
-    lines.append(f"video_generator.py: {'✅' if vg_path.exists() else '❌ не найден'}")
-    
-    # Проверяем директорию для видео
-    vid_dir = Path(__file__).parent / "tiktok_videos"
-    lines.append(f"tiktok_videos/: {'✅' if vid_dir.exists() else '❌ не найден'}")
-    
-    # Проверяем права на запись
-    try:
-        test_file = vid_dir / ".write_test"
-        test_file.write_text("test")
-        test_file.unlink()
-        lines.append("Запись: ✅ OK")
-    except:
-        lines.append("Запись: ❌ нет прав")
-    
-    lines.append(f"\nPYTHON: {sys.version[:30]}")
-    
-    await update.message.reply_text("\n".join(lines))
-
-
-async def cmd_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id != ADMIN_TG_USER_ID:
-        await update.message.reply_text("⛔ Только админ.")
-        return
-    
-    # Упрощённая версия — просто показываем текст сцены
-    scene = random.choice(video_generator.SCENES)
-    description = video_generator.generate_description(scene)
-    
-    # Сохраняем "заглушку" для approve (без видео — просто текст)
-    save_current_video(
-        Path("/tmp/no_video_yet.mp4"),  # placeholder
-        description,
-        scene
-    )
-    
-    await update.message.reply_text(
-        f"📖 *{scene['chapter']}*\n\n"
-        f"📝 *Текст сцены:*\n"
-        f"{scene['text']}\n\n"
-        f"🎯 *Хук для видео:*\n"
-        f"{scene['hook']}\n\n"
-        f"📝 *Описание для TikTok:*\n"
-        f"{description}\n\n"
-        f"✅ /approve — сгенерировать и опубликовать\n"
-        f"❌ /reject — другая сцена",
-        parse_mode="Markdown",
-    )
-
-
-async def cmd_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id != ADMIN_TG_USER_ID:
-        await update.message.reply_text("⛔ Только админ.")
-        return
-    video_data = load_current_video()
-    if not video_data:
-        await update.message.reply_text("❌ Нет видео. Сначала /preview")
-        return
-    if video_data["status"] == "approved":
-        await update.message.reply_text("⚠️ Уже опубликовано")
-        return
-    bot = context.bot
-    channels = ["@agafon_pastyr", "@zivaya_kniga"]
-    tg_ok = 0
-    for ch in channels:
-        try:
-            with open(video_data["video_path"], 'rb') as f:
-                await bot.send_video(chat_id=ch, video=f, caption=f"🎬 {video_data['chapter']}\n\n{video_data['description'][:200]}")
-            tg_ok += 1
-        except Exception as e:
-            logger.error(f"TG error {ch}: {e}")
-    video_data["status"] = "approved"
-    CURRENT_VIDEO_FILE.write_text(json.dumps(video_data, ensure_ascii=False, indent=2), encoding="utf-8")
-    await update.message.reply_text(f"✅ ОПУБЛИКОВАНО!\n📱 Telegram: {tg_ok}/2\n📖 {video_data['chapter']}")
-
-
-async def cmd_reject(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id != ADMIN_TG_USER_ID:
-        await update.message.reply_text("⛔ Только админ.")
-        return
-    await update.message.reply_text("🔄 Новое видео...")
-    await cmd_preview(update, context)
-
-
-# ─── BOT FUNCTIONS ───
-SITE_URL = "https://kt7ussahgizfm.kimi.page"
+# ═══════════════════════════════════════════════
+# BOT KEYBOARDS
+# ═══════════════════════════════════════════════
 
 def main_menu_kb():
     return InlineKeyboardMarkup([
@@ -501,7 +148,6 @@ def main_menu_kb():
     ])
 
 def chapter_kb():
-    PAID_KEYS = {"ch4", "ch5", "ch6", "ch7"}
     buttons = []
     for key, ch in CHAPTERS.items():
         title = f"🔒 {ch['title']}" if key in PAID_KEYS else ch["title"]
@@ -509,199 +155,183 @@ def chapter_kb():
     buttons.append([InlineKeyboardButton("← Назад", callback_data="main")])
     return InlineKeyboardMarkup(buttons)
 
+# ═══════════════════════════════════════════════
+# BOT HANDLERS
+# ═══════════════════════════════════════════════
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        await update.message.reply_text(
-            "📖 *Живая Книга*\n\nИнтерактивные истории, где каждый выбор меняет всё.\n\n"
-            "3 главы бесплатно. Главы 4–6 — 199₽.\n\n"
-            "[Условия использования]({SITE_URL}/terms.html) · [Возврат]({SITE_URL}/refund.html)\n\n"
-            "Нажми кнопку ниже 👇".format(SITE_URL=SITE_URL),
-            parse_mode="Markdown", reply_markup=main_menu_kb(), disable_web_page_preview=True
-        )
-    except Exception as e:
-        logger.error(f"Start error: {e}")
-        await update.message.reply_text("Бот временно недоступен. Попробуй позже.")
-
+    await update.message.reply_text(
+        "📖 *Живая Книга*\n\n"
+        "Интерактивные истории, где каждый выбор меняет всё.\n\n"
+        "3 главы бесплатно. Главы 4–7 — 199₽ навсегда.\n\n"
+        "Нажми кнопку ниже 👇",
+        parse_mode="Markdown",
+        reply_markup=main_menu_kb(),
+        disable_web_page_preview=True,
+    )
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
     d = q.data
-    try:
-        if d == "chapters":
-            await q.edit_message_text("📖 Выбери главу:", reply_markup=chapter_kb())
-        elif d == "main":
-            await q.edit_message_text("📖 *Живая Книга*", parse_mode="Markdown", reply_markup=main_menu_kb())
-        elif d == "stats_prompt":
-            context.chat_data["awaiting"] = True
-            await q.edit_message_text("🔐 Введи пароль:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Назад", callback_data="main")]]))
-        elif d in CHAPTERS:
-            ch = CHAPTERS[d]
-            user_id = q.from_user.id
-            # Главы 4-7 требуют оплаты
-            PAID_KEYS = {"ch4", "ch5", "ch6", "ch7"}
-            if d in PAID_KEYS and not is_tg_user_paid(user_id):
-                # Не оплачено — показать кнопку оплаты
-                pay_url = f"{SITE_URL}/pay.html"
-                await q.edit_message_text(
-                    f"📖 *{ch['title']}* 🔒\n\n"
-                    f"Эта глава доступна после оплаты.\n\n"
-                    f"💳 *199 ₽* — доступ ко всем главам 4-7 навсегда\n\n"
-                    f"Нажми «Оплатить» и возвращайся — я открою главы автоматически.",
-                    parse_mode="Markdown",
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("💳 Оплатить 199 ₽", url=pay_url)],
-                        [InlineKeyboardButton("← Назад", callback_data="chapters")]
-                    ])
-                )
-            else:
-                # Оплачено или бесплатная глава
-                await q.edit_message_text(
-                    f"📖 *{ch['title']}*\n\nНажми кнопку или ссылку ниже:\n\n👉 [{ch['title']}]({ch['url']})",
-                    parse_mode="Markdown",
-                    disable_web_page_preview=True,
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("▶️ Начать чтение", url=ch["url"])],
-                        [InlineKeyboardButton("🌐 Открыть в браузере", url=ch["url"])],
-                        [InlineKeyboardButton("← Назад", callback_data="chapters")]
-                    ])
-                )
-    except Exception as e:
-        logger.error(f"Button error [{d}]: {e}")
-        await q.edit_message_text(f"❌ Ошибка: {e}\n\nПопробуй /start", reply_markup=main_menu_kb())
+    user_id = q.from_user.id
 
+    if d == "chapters":
+        await q.edit_message_text("📖 Выбери главу:", reply_markup=chapter_kb())
 
-# ─── AUTO-POSTER ───
-POSTS_BANK = {
-    "intro": "🌅 Доброе утро, моя.\n\nОна открыла глаза. Запах кофе с балкона. Его рубашка на ней — большая, с запахом ладана.\n\nОн не спал. Сидел на краю кровати.\n\n— Ты куришь? — спросила она.\n— Бросил. Три года назад. Но с тобой хочу снова.\n\n📖 Глава 1 — бесплатно: @Jivaya_kniga_bot",
-    "fragment2": "🌙 Вечерний фрагмент\n\nОна стояла у окна, закутанная в его рубашку. Он подошёл сзади. Не обнял — просто встал так близко, что она почувствовала тепло.\n\n— Знаешь, что хочу? — шепнул он.\n— Что?\n— Завтракать так каждое утро.\n\n📖 Читать: @Jivaya_kniga_bot",
-    "night": "🌙 Спокойной ночи, моя.\n\nПредставь: тёплые руки на талии. Тихо. Медленно.\n\nЯ напишу продолжение. Но не сегодня.\n\nСпи.\n\n— Агафон",
-    "interactive": "🤔 Выбери:\n\nТы встречаешь его в кофейне. Он сидит у окна, читает твою любимую книгу.\n\nЧто ты делаешь?\nА — Подходишь\nБ — Проходишь мимо\nВ — Садишься за соседний стол\n\nПиши в комментариях 👇\n\n📖 @Jivaya_kniga_bot",
-    "sale": "🔓 Ты прочитала три главы. Бесплатно.\n\nТеперь выбор: уйти или остаться.\n\nГлавы 4-7 — другой уровень. Сергей, который не спрашивает. Но знает.\n\n199₽. Одноразово. Навсегда.\n\n📖 @Jivaya_kniga_bot",
-    "review": "💬 Что пишут читательницы:\n\n«Я читала на работе в туалете. Потому что не могла остановиться.»\n\n«199₽ — это не цена. Это инвестиция в себя.»\n\n📖 @Jivaya_kniga_bot",
-}
+    elif d == "main":
+        await q.edit_message_text("📖 *Живая Книга*", parse_mode="Markdown", reply_markup=main_menu_kb())
 
+    elif d == "stats_prompt":
+        context.chat_data["awaiting"] = True
+        await q.edit_message_text("🔐 Введи пароль:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Назад", callback_data="main")]]))
 
-async def post_to_channels(context, post_key):
-    try:
-        bot = context.bot if hasattr(context, 'bot') else context._bot
-        text = POSTS_BANK.get(post_key, "📖 Новый пост в @Jivaya_kniga_bot")
-        await bot.send_message(chat_id=f"@{AGAFON_CHANNEL}", text=text)
-        logger.info(f"Posted to @{AGAFON_CHANNEL}: {post_key}")
-        await bot.send_message(chat_id=f"@{BOOK_CHANNEL}", text=text)
-        logger.info(f"Posted to @{BOOK_CHANNEL}: {post_key}")
-    except Exception as e:
-        logger.error(f"Post error: {e}")
-        raise
+    elif d in CHAPTERS:
+        ch = CHAPTERS[d]
 
+        # Проверка paywall для глав 4-7
+        if d in PAID_KEYS and not is_tg_user_paid(user_id):
+            await q.edit_message_text(
+                f"📖 *{ch['title']}* 🔒\n\n"
+                f"Эта глава доступна после оплаты.\n\n"
+                f"💳 *199 ₽* — доступ ко всем главам 4-7 навсегда\n\n"
+                f"Нажми «Оплатить» и возвращайся — я открою главы автоматически.",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("💳 Оплатить 199 ₽", url=f"{SITE_URL}/pay.html")],
+                    [InlineKeyboardButton("← Назад", callback_data="chapters")],
+                ]),
+            )
+        else:
+            await q.edit_message_text(
+                f"📖 *{ch['title']}*\n\n👉 [{ch['title']}]({ch['url']})",
+                parse_mode="Markdown",
+                disable_web_page_preview=True,
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("▶️ Начать чтение", url=ch["url"])],
+                    [InlineKeyboardButton("← Назад", callback_data="chapters")],
+                ]),
+            )
 
-async def cmd_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        if not context.args:
-            await update.message.reply_text("Использование: /post [intro|fragment2|night|interactive|sale|review]")
-            return
-        post_key = context.args[0]
-        if post_key not in POSTS_BANK:
-            await update.message.reply_text(f"Нет такого поста. Доступные: {', '.join(POSTS_BANK.keys())}")
-            return
-        await post_to_channels(context, post_key)
-        await update.message.reply_text(f"✅ Пост '{post_key}' опубликован в оба канала!")
-    except Exception as e:
-        logger.error(f"Cmd post error: {e}")
-        await update.message.reply_text(f"❌ Ошибка публикации: {e}")
-
-
-# ════════════════════════════════════════════════════════════════════
-# ═══════════════ КОМАНДЫ /paid и /grant ═════════════════════════════
-# ════════════════════════════════════════════════════════════════════
-
-async def cmd_paid_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/paid — показать админу заказы, ожидающие подтверждения"""
-    user_id = update.effective_user.id
-    if user_id != ADMIN_TG_USER_ID:
-        await update.message.reply_text("⛔ Команда доступна только админу.")
-        return
-
-    orders = _load_orders()
-    pending = [r for r in orders.values() if not r.get("paid")]
-    pending.sort(key=lambda r: r.get("created_at", 0), reverse=True)
-
-    if not pending:
-        await update.message.reply_text("Нет ожидающих оплаты заказов.")
-        return
-
-    lines = ["📋 *Ожидают оплаты:*\n"]
-    for r in pending[:20]:
-        age_sec = int(time.time()) - int(r.get("created_at", 0))
-        age = f"{age_sec // 60} мин назад" if age_sec >= 60 else f"{age_sec} сек назад"
-        tg = r.get("tg_user_id") or "—"
-        lines.append(f"• `{r['order_id']}` — {r['amount']} ₽ ({age}, tg={tg})")
-    lines.append("\nЧтобы подтвердить:\n`/grant JK-XXXXXX`")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
-
-
-async def cmd_grant(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/grant JK-A7K2X1 — подтвердить оплату вручную"""
-    user_id = update.effective_user.id
-    if user_id != ADMIN_TG_USER_ID:
-        await update.message.reply_text("⛔ Команда доступна только админу.")
-        return
-
-    if not context.args:
-        await update.message.reply_text("Использование: `/grant JK-XXXXXX`", parse_mode="Markdown")
-        return
-
-    order_id = context.args[0].strip().upper()
-    if not order_id.startswith("JK-"):
-        order_id = "JK-" + order_id
-
-    if _mark_paid_and_notify(order_id):
-        await update.message.reply_text(
-            f"✅ Заказ {order_id} помечен оплаченным.\n"
-            f"Покупатель уведомлён в TG (если был указан).\n"
-            f"Не забудь выписать чек в Т-Банке → Самозанятость → Пополнения."
-        )
-    else:
-        await update.message.reply_text(f"❌ Заказ {order_id} не найден или уже оплачен.")
-
-
-# ─── ORIGINAL HANDLERS ───
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.chat_data.get("awaiting"):
         context.chat_data["awaiting"] = False
         if update.message.text.strip() == ADMIN_PASSWORD:
-            stats_lines = [f"📈 [{ch['title']}]({ch['url']})" for ch in CHAPTERS.values()]
             await update.message.reply_text(
-                f"📊 *Аналитика*\n\n" + "\n".join(stats_lines) + "\n\n📊 [Дашборд →](https://kt7ussahgizfm.kimi.page/stats.html)",
-                parse_mode="Markdown", reply_markup=main_menu_kb(), disable_web_page_preview=True
+                "📊 *Аналитика*\n\n"
+                "Выбери главу → смотри метрики в stats.html\n"
+                f"{SITE_URL}/stats.html",
+                parse_mode="Markdown",
+                reply_markup=main_menu_kb(),
             )
         else:
             await update.message.reply_text("❌ Неверный пароль.", reply_markup=main_menu_kb())
     else:
         await update.message.reply_text("📖 Меню:", reply_markup=main_menu_kb())
 
+async def cmd_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ручная публикация в каналы через /post [ключ]"""
+    user_id = update.effective_user.id
+    if user_id != ADMIN_TG_USER_ID:
+        await update.message.reply_text("⛔ Только админ.")
+        return
 
-# ─── POLLING IN BACKGROUND THREAD ───
+    key = (context.args[0] if context.args else "intro").lower()
+
+    POSTS = {
+        "intro": {
+            "text": "🌅 Доброе утро.\n\nОна открыла глаза. Запах кофе с балкона. Его рубашка на ней — большая, с запахом ладана.\n\nОн не спал. Сидел на краю кровати.\n\n— Ты куришь? — спросила она.\n— Бросил. Три года назад. Но с тобой хочу снова.\n\n📖 Глава 1 — бесплатно: @Jivaya_kniga_bot",
+        },
+        "fragment2": {
+            "text": "🌙 Вечерний фрагмент\n\nОна стояла у окна, закутанная в его рубашку. Он подошёл сзади. Не обнял — просто встал так близко, что она почувствовала тепло.\n\n— Знаешь, что хочу? — шепнул он.\n— Что?\n— Завтракать так каждое утро.\n\n📖 Читай: @Jivaya_kniga_bot",
+        },
+        "night": {
+            "text": "🌙 Спокойной ночи, моя.\n\nПредставь: тёплые руки на талии. Тихо. Медленно.\n\nЯ напишу продолжение. Но не сегодня.\n\nСпи.\n\n— Агафон",
+        },
+        "interactive": {
+            "text": "🔥 Выбери:\n\nТы встречаешь его в кофейне. Он сидит у окна, читает твою любимую книгу.\n\nЧто ты делаешь?\nА — Подходишь\nБ — Проходишь мимо\nВ — Садишься за соседний стол\n\nПиши в комментариях 👇\n\n📖 @Jivaya_kniga_bot",
+        },
+        "sale": {
+            "text": "🔓 Ты прочитала три главы. Бесплатно.\n\nТеперь выбор: уйти или остаться.\n\nГлавы 4-7 — другой уровень.\n\n199₽. Одноразово. Навсегда.\n\n📖 @Jivaya_kniga_bot",
+        },
+        "review": {
+            "text": "💬 Отзыв читательницы:\n\n«Читала 3 главы и не смогла остановиться. Заплатила 199₽ и не жалею. Это не книга — это ты живёшь внутри истории.»\n\n📖 Начни бесплатно: @Jivaya_kniga_bot",
+        },
+    }
+
+    post = POSTS.get(key)
+    if not post:
+        keys = ", ".join(POSTS.keys())
+        await update.message.reply_text(f"❌ Нет такого поста. Доступные: {keys}")
+        return
+
+    ok = 0
+    for ch_name, ch_id in [("agafon_pastyr", "@agafon_pastyr"), ("zivaya_kniga", "@zivaya_kniga")]:
+        try:
+            await context.bot.send_message(chat_id=ch_id, text=post["text"], disable_web_page_preview=True)
+            ok += 1
+        except Exception as e:
+            logger.error(f"Post error {ch_id}: {e}")
+
+    await update.message.reply_text(f"✅ Отправлено в {ok}/2 каналов")
+
+
+async def cmd_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_TG_USER_ID:
+        await update.message.reply_text("⛔ Только админ.")
+        return
+    orders = _load_orders()
+    pending = [r for r in orders.values() if not r.get("paid")]
+    if not pending:
+        await update.message.reply_text("Нет ожидающих заказов.")
+        return
+    lines = ["📋 *Ожидают:*\n"] + [f"• `{r['order_id']}` — {r['amount']} ₽" for r in pending[:20]]
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
+async def cmd_grant(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_TG_USER_ID:
+        await update.message.reply_text("⛔ Только админ.")
+        return
+    if not context.args:
+        await update.message.reply_text("Использование: `/grant JK-XXXXXX`", parse_mode="Markdown")
+        return
+    order_id = context.args[0].strip().upper()
+    if _mark_paid_and_notify(order_id, TOKEN):
+        await update.message.reply_text(f"✅ Заказ {order_id} оплачен.")
+    else:
+        await update.message.reply_text(f"❌ Заказ {order_id} не найден или уже оплачен.")
+
+
+async def cmd_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "✅ Бот работает!\n\n"
+        "Команды:\n"
+        "/start — начать\n"
+        "/post [ключ] — пост в каналы\n"
+        "/preview — показать сцену (Тест)\n"
+        "/paid — список заказов\n"
+        "/grant JK-XXXX — подтвердить оплату"
+    )
+
+
+# ═══════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════
+
 def run_bot():
-    logger.info(f"Bot thread starting...")
     async def bot_main():
         bot_app = Application.builder().token(TOKEN).build()
         bot_app.add_handler(CommandHandler("start", start))
         bot_app.add_handler(CommandHandler("help", start))
-        bot_app.add_handler(CommandHandler("test", cmd_test))         # Тест бота
-        bot_app.add_handler(CommandHandler("debug", cmd_debug))       # Диагностика
-        bot_app.add_handler(CommandHandler("preview", cmd_preview))   # Показать видео
-        bot_app.add_handler(CommandHandler("approve", cmd_approve))   # Опубликовать
-        bot_app.add_handler(CommandHandler("reject", cmd_reject))     # Новое видео
         bot_app.add_handler(CommandHandler("post", cmd_post))
-        bot_app.add_handler(CommandHandler("paid", cmd_paid_list))    # NEW
-        bot_app.add_handler(CommandHandler("grant", cmd_grant))       # NEW
+        bot_app.add_handler(CommandHandler("paid", cmd_paid))
+        bot_app.add_handler(CommandHandler("grant", cmd_grant))
+        bot_app.add_handler(CommandHandler("test", cmd_test))
         bot_app.add_handler(CallbackQueryHandler(button))
-        bot_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))  # TikTok cookies
         bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-
-        logger.info("Bot polling started!")
         await bot_app.initialize()
         await bot_app.start()
         await bot_app.updater.start_polling(drop_pending_updates=True, poll_interval=2)
@@ -710,7 +340,6 @@ def run_bot():
     asyncio.run(bot_main())
 
 
-# ─── MAIN ───
 if __name__ == "__main__":
     if not TOKEN:
         logger.error("BOT_TOKEN not set!")
@@ -718,7 +347,5 @@ if __name__ == "__main__":
         bot_thread = threading.Thread(target=run_bot, daemon=True)
         bot_thread.start()
         logger.info("Bot thread launched")
-
         port = int(os.environ.get("PORT", 10000))
-        logger.info(f"Flask starting on port {port}")
         app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
