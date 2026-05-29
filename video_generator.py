@@ -3,7 +3,7 @@
 Генератор видео для TikTok из сцен «Живой Книги»
 Вертикальное видео 1080x1920, текст на фоне, музыка
 """
-import os, random, json, subprocess, textwrap
+import os, random, json, subprocess, textwrap, asyncio
 from pathlib import Path
 from datetime import datetime
 
@@ -126,12 +126,30 @@ def generate_video(scene: dict, date_str: str) -> Path:
         ]
         
         print(f"[VIDEO_GEN] Running ffmpeg...")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        print(f"[VIDEO_GEN] ffmpeg rc={result.returncode}")
         
-        if result.returncode != 0:
-            print(f"[VIDEO_GEN] ffmpeg err: {result.stderr[:300]}")
-            # Fallback без текста
+        # Запускаем ffmpeg в отдельном потоке (не блокирует event loop бота)
+        def run_ffmpeg_sync(command, out_path):
+            try:
+                r = subprocess.run(command, capture_output=True, text=True, timeout=20)
+                if r.returncode != 0:
+                    return r.returncode, r.stderr[:300]
+                if not out_path.exists():
+                    return -1, "file not created"
+                return 0, "OK"
+            except subprocess.TimeoutExpired:
+                return -1, "timeout"
+            except Exception as e:
+                return -1, str(e)[:200]
+        
+        loop = asyncio.get_event_loop()
+        
+        # Пробуем с текстом
+        rc, msg = loop.run_in_executor(None, run_ffmpeg_sync, cmd, output_file).result()
+        print(f"[VIDEO_GEN] drawtext: rc={rc}, msg={msg[:100]}")
+        
+        # Если не удалось — пробуем без текста
+        if rc != 0:
+            print("[VIDEO_GEN] Trying without text...")
             cmd_simple = [
                 "ffmpeg", "-y",
                 "-f", "lavfi",
@@ -141,18 +159,22 @@ def generate_video(scene: dict, date_str: str) -> Path:
                 "-t", str(duration),
                 str(output_file)
             ]
-            print(f"[VIDEO_GEN] Fallback (no text)...")
-            result2 = subprocess.run(cmd_simple, capture_output=True, text=True, timeout=60)
-            print(f"[VIDEO_GEN] fallback rc={result2.returncode}")
-            if result2.returncode != 0:
-                print(f"[VIDEO_GEN] fallback err: {result2.stderr[:300]}")
-                return None
+            rc, msg = loop.run_in_executor(None, run_ffmpeg_sync, cmd_simple, output_file).result()
+            print(f"[VIDEO_GEN] no-text: rc={rc}, msg={msg[:100]}")
+        
+        if rc != 0:
+            print(f"[VIDEO_GEN] FAILED: {msg}")
+            return None
+        
+        print(f"[VIDEO_GEN] ffmpeg OK")
         
         print(f"[VIDEO_GEN] Done: {output_file} ({output_file.stat().st_size} bytes)")
         return output_file
         
     except Exception as e:
         print(f"[VIDEO_GEN] EXCEPTION: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         return None
     
     return output_file
