@@ -408,33 +408,40 @@ async def cmd_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id != ADMIN_TG_USER_ID:
         await update.message.reply_text("⛔ Только админ.")
         return
-    await update.message.reply_text("🎬 Генерирую видео...")
     
-    logger.info("=== PREVIEW START ===")
+    status_msg = await update.message.reply_text("🎬 Генерирую видео... (шаг 1/5)")
     
     try:
-        logger.info("Step 1: calling generate_daily_content()")
+        # Шаг 1: Генерация
+        await status_msg.edit_text("🎬 Шаг 1/5: Генерация контента...")
         video_path, description, scene = video_generator.generate_daily_content()
-        logger.info(f"Step 2: video_path={video_path}")
         
         if not video_path:
-            logger.error("Step 2: video_path is None!")
-            await update.message.reply_text("❌ Видео не сгенерировалось. Проверьте /debug")
+            await status_msg.edit_text("❌ Шаг 1: Видео не сгенерировалось\nПроверьте /debug")
             return
         
+        # Шаг 2: Проверка файла
+        await status_msg.edit_text("🎬 Шаг 2/5: Проверка файла...")
         if not video_path.exists():
-            logger.error(f"Step 2: file not found: {video_path}")
-            await update.message.reply_text("❌ Файл не найден после генерации")
+            await status_msg.edit_text(f"❌ Шаг 2: Файл не найден: {video_path}")
             return
         
-        logger.info(f"Step 3: file size={video_path.stat().st_size}")
+        file_size = video_path.stat().st_size
+        if file_size == 0:
+            await status_msg.edit_text("❌ Шаг 2: Файл пустой (0 байт)")
+            return
+        
+        # Шаг 3: Сохранение
+        await status_msg.edit_text(f"🎬 Шаг 3/5: Сохранение ({file_size//1024} KB)...")
         save_current_video(video_path, description, scene)
         
-        logger.info("Step 4: sending video")
+        # Шаг 4: Отправка видео
+        await status_msg.edit_text("🎬 Шаг 4/5: Отправка видео...")
         with open(video_path, 'rb') as f:
             await update.message.reply_video(video=f)
-        logger.info("Step 5: video sent OK")
         
+        # Шаг 5: Описание
+        await status_msg.edit_text("🎬 Шаг 5/5: Готово!")
         await update.message.reply_text(
             f"📖 *{scene['chapter']}*\n\n"
             f"📝 *Описание для TikTok:*\n"
@@ -443,13 +450,14 @@ async def cmd_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"❌ /reject — сгенерировать другое",
             parse_mode="Markdown",
         )
-        logger.info("=== PREVIEW DONE ===")
         
     except Exception as e:
-        logger.error(f"PREVIEW ERROR: {type(e).__name__}: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        await update.message.reply_text(f"❌ Ошибка генерации:\n{type(e).__name__}: {e}\n\nПроверьте /debug")
+        error_msg = f"❌ Ошибка на шаге:\n{type(e).__name__}: {str(e)[:200]}"
+        logger.error(f"PREVIEW ERROR: {error_msg}")
+        try:
+            await status_msg.edit_text(error_msg)
+        except:
+            await update.message.reply_text(error_msg)
 
 
 async def cmd_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
