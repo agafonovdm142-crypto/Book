@@ -374,7 +374,7 @@ async def cmd_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Диагностика системы"""
-    import shutil, subprocess
+    import shutil, subprocess, sys
     lines = ["🔧 ДИАГНОСТИКА:"]
     
     # Проверяем ffmpeg
