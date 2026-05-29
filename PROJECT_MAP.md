@@ -1,234 +1,181 @@
-# 🗺️ КАРТА ПАПОК ПРОЕКТА «ЖИВАЯ КНИГА»
+# 🗺️ КАРТА ПРОЕКТА «ЖИВАЯ КНИГА» — АКТУАЛЬНАЯ ВЕРСИЯ
 
-> **Назначение**: Этот файл — первая точка входа для AI-агентов. Содержит структуру всех папок, назначение каждой, и ссылки на ключевые файлы. Обновляется при добавлении новых разделов.
->
-> **Версия**: 2.0 | **Дата**: 2025-01-10 | **Правило**: При создании новой папки — добавить сюда запись
-
----
-
-## 📁 Корневые папки (7 штук)
-
-| Папка | Назначение | Когда обращаться |
-|-------|-----------|-----------------|
-| `scenarios/` | Интерактивные сценарии (Markdown) | Нужен текст сцены, выборы, флаги |
-| `src/` | Исходный код (frontend + backend + AI) | Разработка, код, API |
-| `marketing/` | Маркетинг: планы, креативы, лендинг | Маркетинг, рост, копи |
-| `docs/` | Документация: брифы, аналитика, отчёты | Продуктовые решения, анализ |
-| `config/` | Docker, CI/CD, nginx, скрипты | Инфраструктура, деплой |
-| `press/` | Пресс-релизы и медиа-материалы | PR, коммуникации |
-| `design/` | Дизайн: макеты, UI-kit, ассеты | Дизайн, визуал, UX |
-| `legal/` | Юридические документы | Compliance, правовые вопросы |
+> **Версия**: 4.0 | **Дата**: 2025-05-27 | **Статус**: 7 глав, ЮKassa, paywall, localStorage
+> **Правило**: При изменении — обновить эту карту. При сбое — сверяться с ней.
 
 ---
 
-## 📂 Детальная структура
+## 🔐 КРИТИЧЕСКИЕ ПАРАМЕТРЫ (проверять при сбоях)
 
-### `scenarios/` — СЦЕНАРИИ
-Каждый файл = одна глава интерактивной истории.
-```
-scenarios/
-├── README.md                    # Принципы письма, таблица флагов, измерения профиля
-├── 01-subbotnee-utro.md        # [ГЛАВА 1] Кафе + Галерея (22 сцены, 13 выборов)
-├── 02-vecher-u-maksa.md        # [ГЛАВА 2] Вечер у Макса (12 сцен, 8 выборов)
-└── 03-noch-s-leshey.md         # [ГЛАВА 3] Ночь с Лёшей (10 сцен, 7 выборов)
-```
-**Ключевые элементы**: сцены (scene_XX), выборы (A/B/C), флаги (lingerie_*, has_lesha_number), измерения профиля (sensuality, dominance, boldness)
+### Telegram Бот
+| Параметр | Значение |
+|----------|----------|
+| **Username** | @Jivaya_kniga_bot |
+| **BOT_TOKEN** | `8712020124:AAF_Ze10P7gd9rQktUX09PKYuqsalLnGNWs` (hardcoded в bot.py) |
+| **Описание** | Живая Книга — интерактивные истории |
 
----
+### ЮKassa Оплата
+| Параметр | Значение |
+|----------|----------|
+| **YOOKASSA_SHOP_ID** | `135...` (7 цифр, в Render Environment) |
+| **YOOKASSA_SECRET_KEY** | `live_5...` (48 символов, в Render Environment) |
+| **YOOKASSA_TEST_MODE** | `false` (бой, не тест!) |
 
-### `src/` — ИСХОДНЫЙ КОД
+### Хостинг / URLs
+| Параметр | Значение |
+|----------|----------|
+| **Сайт (Kimi)** | https://kt7ussahgizfm.kimi.page |
+| **Бот API (Render)** | https://book-gzle.onrender.com |
+| **GitHub** | https://github.com/agafonovdm142-crypto/Book |
+| **Пинговалка** | cron-job.org (каждые 5 мин) |
 
-#### `src/frontend/` — Клиентская часть (React 18 + TypeScript + Tailwind + PWA) ✅ РЕАЛИЗОВАНО
+### Render Environment Variables
 ```
-src/frontend/
-├── package.json                 # Зависимости (React, Zustand, Framer Motion, etc.)
-├── vite.config.ts              # [ГОТОВО] Конфиг Vite + PWA plugin + proxy
-├── tailwind.config.js          # [ГОТОВО] Тема: цвета бордо/золото/крем, анимации
-├── tsconfig.json
-├── public/
-│   ├── manifest.json           # PWA манифест
-│   └── icons/
-└── src/
-    ├── main.tsx                # Точка входа
-    ├── App.tsx                 # [ГОТОВО] Роутинг (StoryReader default)
-    ├── index.css               # Глобальные стили
-    ├── components/             # [ГОТОВО] React-компоненты
-    │   ├── StoryReader.tsx     # [КЛЮЧЕВОЙ] Читалка историй (progress, illustration, text, choices)
-    │   ├── ChoiceModal.tsx     # [ГОТОВО] Кнопка выбора с эффектами (A/B/C)
-    │   ├── PremiumGate.tsx     # [ГОТОВО] Модал Premium (4 фичи, CTA, trial)
-    │   ├── AgeGate.tsx         # [ГОТОВО] Верификация 18+ (self-declare)
-    │   └── Onboarding.tsx      # [ГОТОВО] 3-шаговый онбординг (имя, город, настроение)
-    ├── stores/                 # [ГОТОВО] Zustand сторы
-    │   ├── storyStore.ts       # [ГОТОВО] Состояние сюжета, loadScene, makeChoice, flags
-    │   └── profileStore.ts     # [ГОТОВО] Профиль (10 измерений), updateProfile
-    └── types/                  # [ГОТОВО] TypeScript типы
-        └── index.ts            # Story, Scene, Choice, Profile, User types
-```
-
-#### `src/backend/` — Сервер (NestJS + PostgreSQL + Redis) ✅ РЕАЛИЗОВАНО
-```
-src/backend/
-├── package.json                 # Зависимости (NestJS, Prisma, OpenAI, etc.)
-├── tsconfig.json
-├── prisma/
-│   ├── schema.prisma           # [ГОТОВО] 8 моделей: User, Profile, Scene, Choice, StoryProgress, UserChoice, Subscription, Story
-│   └── seed.ts                 # [ГОТОВО] Seed данных: Глава 1 (18 сцен, 35 выборов)
-├── src/
-│   ├── main.ts                 # Точка входа NestJS
-│   ├── app.module.ts           # Корневой модуль
-│   ├── story/                  # [МОДУЛЬ] [ГОТОВО] Story Engine
-│   │   ├── story.controller.ts # [ГОТОВО] API: GET /current, POST /choice, GET /scene/:id
-│   │   ├── story.service.ts   # [ГОТОВО] DAG traversal, profile update, AI adaptation, Redis cache
-│   │   └── story.module.ts
-│   └── ai/                     # [МОДУЛЬ] [ГОТОВО] AI интеграция
-│       ├── openai.service.ts  # [ГОТОВО] GPT-4o (текст) + DALL-E 3 (изображения)
-│       └── ai.module.ts
-```
-
-#### `src/ai-orchestrator/` — AI Pipeline
-```
-src/ai-orchestrator/
-├── prompts/
-│   ├── scene-text.yaml         # Шаблоны для генерации текста сцен
-│   ├── image-generation.yaml   # Шаблоны для иллюстраций
-│   └── profile-analysis.yaml   # Анализ профиля для адаптации
-├── config/
-│   └── ai-config.yaml          # Модели, температуры, лимиты
-└── README.md
+BOT_TOKEN           = (удалить! токен hardcoded в bot.py)
+YOOKASSA_SHOP_ID    = 135XXXX
+YOOKASSA_SECRET_KEY = live_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+YOOKASSA_TEST_MODE  = false
+PORT                = 10000
 ```
 
 ---
 
-### `marketing/` — МАРКЕТИНГ ✅ РЕАЛИЗОВАНО
-```
-marketing/
-├── campaigns/
-│   └── launch-plan.md          # [ГОТОВО] 3-фазный план: Pre → Soft → Hard → Scale, KPI, бюджет $11.8K
-├── creatives/                  # [ГОТОВО] Все креативы
-│   ├── booktok-videos.md       # [ГОТОВО] 5 видео концепций для TikTok/Reels, хештеги, треки
-│   ├── ad-copy.md             # [ГОТОВО] Копи для FB/IG (3 креатива), Google Ads, Push-уведомления
-│   ├── email-templates.md      # [ГОТОВО] 4 email шаблона: Welcome, Daily Chapter, Premium Upsell, Win-back
-│   └── push-templates.md       # Push-уведомления (onboarding, retention, win-back)
-├── landing-page/
-│   └── copy.md                # [ГОТОВО] Полный копи для landing page (hero, features, pricing, CTA)
-├── seo/
-│   └── keywords.md            # SEO-ключевые слова + статьи
-├── partnerships/
-│   └── authors-list.md        # Список авторов для коллабораций
-└── analytics/
-    └── kpis.md               # Целевые метрики (CAC, LTV, retention)
-```
+## 📁 Структура проекта
 
----
+### Корневые файлы (book/)
+| Файл | Назначение | Критичность |
+|------|-----------|-------------|
+| `index.html` | Главная страница — обложка, 7 глав, плашка цены | 🔴 |
+| `bot.py` | Telegram-бот — @Jivaya_kniga_bot, paywall, YooKassa | 🔴 |
+| `yookassa.py` | Модуль интеграции с ЮKassa API v3 | 🔴 |
+| `video_generator.py` | Генератор видео TikTok (ffmpeg) | ⚠️ Отключён — subprocess блокирует бот |
+| `auto_poster.py` | Авто-постинг Telegram | ⚠️ Не деплоен — используем /post |
+| `tiktok_poster.py` | Загрузка в TikTok (Playwright) | ⚠️ Не деплоен — нужны cookies |
+| `pay.html` | Страница оплаты (ЮKassa + fallback СБП) | 🔴 |
+| `success.html` | Страница успешной оплаты | 🟡 |
+| `verify.py` | Агент проверки — 8 проверок на 7 главах | 🟡 |
+| `CHECKLIST.md` | История ошибок + правила деплоя | 🟡 |
+| `PROJECT_MAP.md` | Этот файл — карта проекта | 🟡 |
+| `RESTORE_CONTEXT.md` | Команды для восстановления контекста | 🟡 |
+| `STYLE_GUIDE.md` | Стиль написания сценариев | 🟡 |
+| `terms.html` | Условия использования | 🔴 (юр.) |
+| `privacy.html` | Политика конфиденциальности | 🔴 (юр.) |
+| `refund.html` | Возврат средств | 🔴 (юр.) |
+| `contacts.html` | Контакты + реквизиты | 🔴 (юр.) |
 
-### `docs/` — ДОКУМЕНТАЦИЯ
+### Папки
 ```
-docs/
-├── briefs/                     # Брифы для команды (5 ролей)
-│   ├── cto.md                  # Архитектура, стек, 16-недельный план
-│   ├── marketer.md             # Стратегия роста, каналы, бюджет
-│   ├── writer.md              # Стиль, персонажи, контент-план
-│   ├── designer.md            # Экраны, дизайн-система, принципы
-│   └── ai-engineer.md         # Промпты, API интеграции, кэширование
-├── reports/
-│   └── market-analysis.md      # $6.4B рынок, аудитория, конкуренты
-└── product/
-    ├── user-flow.md            # User journey map
-    ├── feature-specs.md        # Технические спецификации фич
-    └── roadmap.md             # Дорожная карта MVP → Scale
-```
-
----
-
-### `press/` — ПРЕССА
-```
-press/
-├── press-release.md            # Готовый пресс-релиз (RU)
-├── media-kit.md               # Логотипы, скриншоты, факты
-└── contact-list.md            # Список СМИ и журналистов
+stories/
+├── 01-subbotnee-utro/      # [22 сцены] localStorage ✅
+├── 02-vecher-s-maksom/     # [17 сцен]
+├── 03-noch-s-leshey/       # [14 сцен]
+├── 04-masterskaya-artema/  # [20 сцен] 🔒 платная
+├── 05-voskresene/          # [14 сцен] 🔒 платная
+├── 06-vlastnyy/            # [23 сцен] 🔒 платная
+├── 07-shibari/             # [7 сцен]  🔒 платная (бонус)
+img/                        # Общие картинки (обложки)
+scenarios/                  # Исходники Markdown
+backup/                     # Резервные копии
+ideas/                      # Идеи для новых глав
+legal/                      # Юридические документы
+marketing/                  # Маркетинговые материалы
 ```
 
 ---
 
-### `design/` — ДИЗАЙН ✅ РЕАЛИЗОВАНО
-```
-design/
-├── mockups/                    # Макеты экранов (PNG/Figma)
-│   ├── story-reader.png       # [КЛЮЧЕВОЙ] Читалка
-│   ├── choice-modal.png       # Модалка выбора
-│   ├── home-library.png       # Библиотека историй
-│   └── profile-page.png       # Профиль
-├── style-guide/               # [ГОТОВО] Полный дизайн-гайд
-│   ├── colors.md              # [ГОТОВО] Палитра: бордо #7B2D4C, золото #C8956C, крем #FAF6F1, градиенты
-│   ├── typography.md          # [ГОТОВО] Playfair Display + Inter, 9 размеров, 4 спец.стиля
-│   ├── components.md          # [ГОТОВО] 8 компонентов: Choice Button, Story Reader, Premium Gate, Progress Bar, Effect Badge, Night Mode, анимации
-│   └── illustrations.md       # Стиль иллюстраций (cinematic, warm)
-└── assets/
-    ├── logos/                 # Логотипы (SVG, PNG)
-    └── icons/                 # Иконки (Lucide set)
-```
+## ⚙️ ФУНКЦИОНАЛ (что должно работать)
+
+### Paywall (защита платных глав)
+- **Бот**: Главы 4-7 требуют оплату → проверка `is_tg_user_paid()` → кнопка «Оплатить 199 ₽»
+- **Сайт**: Главы 4-7 → кнопка ведёт на `pay.html`
+- **Цена**: 199 ₽ за доступ ко всем главам 4-7 навсегда
+
+### Оплата
+- **ЮKassa**: Автоматическая оплата (Visa, Mastercard, МИР, СБП)
+- **API endpoints**:
+  - `POST /api/yookassa/create-payment` — создание платежа
+  - `GET  /api/yookassa/check` — проверка статуса
+  - `POST /api/yookassa/webhook` — уведомления от ЮKassa
+  - `GET  /api/yookassa/diag` — диагностика
+
+### localStorage (сохранение прогресса)
+- Глава 1: сохраняет `jivaya_kniga_ch01_progress` (sceneId)
+- При возврате: диалог «Продолжить чтение?»
+
+### Команды бота
+| Команда | Действие |
+|---------|----------|
+| `/start` | Приветствие + меню |
+| `/paid`  | Список ожидающих (админ) |
+| `/grant JK-XXXXXX` | Подтвердить оплату вручную (админ) |
 
 ---
 
-### `legal/` — ЮРИДИЧЕСКИЕ
-```
-legal/
-├── terms-of-use.md            # Условия использования 18+
-├── privacy-policy.md          # Политика конфиденциальности (GDPR)
-├── age-verification.md        # Процедура верификации возраста
-├── cookie-policy.md           # Политика cookies
-├── content-guidelines.md      # Правила контента (что разрешено/запрещено)
-└── dmca-policy.md            # DMCA / жалобы на контент
-```
+## 🔧 Технический стек
+
+| Компонент | Технология |
+|-----------|-----------|
+| Frontend | Статический HTML + CSS + JS |
+| Хостинг | Kimi Static Hosting |
+| Бот | Python 3.12 + python-telegram-bot v21 |
+| Бэкенд | Flask + Render Web Service |
+| Оплата | ЮKassa API v3 |
+| Пинговалка | cron-job.org |
 
 ---
 
-### `config/` — КОНФИГУРАЦИЯ
-```
-config/
-├── docker-compose.yml         # PostgreSQL + Redis + Backend + Frontend
-├── nginx.conf                # Nginx: reverse proxy, SSL, static
-├── .env.example              # Шаблон переменных окружения
-├── github/
-│   └── workflows/
-│       ├── ci.yml             # CI: lint + test + build
-│       └── deploy.yml         # CD: deploy to staging/production
-└── scripts/
-    ├── setup.sh              # One-command setup
-    └── seed.sh               # Seed database with scenarios
-```
+## 🔑 Ключевые файлы для AI-агента
+
+1. **Перед любой работой** → прочитать `CHECKLIST.md` + `PROJECT_MAP.md` + `STYLE_GUIDE.md`
+2. **При сбое бота** → проверить `BOT_TOKEN` (hardcoded), `Procfile` (python bot.py), Render Environment
+3. **При сбое оплаты** → проверить `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY`, `YOOKASSA_TEST_MODE=false`
+4. **Перед деплоем** → `verify.py` (проверка глав) + `py_compile` (bot.py)
+5. **Критические правила** → НЕ `rm -rf deploy/`, копировать `cp -r` поверх
 
 ---
 
-## 🔑 Ключевые файлы (быстрый доступ)
+## 🎬 ВИДЕО-МОДУЛЬ (статус: отключён, чинить в другом окне)
 
-| Задача | Файл | Статус |
-|--------|------|--------|
-| Прочитать сценарий | `scenarios/01-subbotnee-utro.md` | ✅ Готово |
-| Проверить флаги/профиль | `scenarios/README.md` | ✅ Готово |
-| Написать код frontend | `src/frontend/src/components/` | ✅ Готово |
-| Написать код backend | `src/backend/src/story/` | ✅ Готово |
-| Интегрировать AI | `src/backend/src/ai/openai.service.ts` | ✅ Готово |
-| Seed данные в БД | `src/backend/prisma/seed.ts` | ✅ Готово |
-| Смотреть дизайн | `design/style-guide/` | ✅ Готово |
-| Маркетинг | `marketing/campaigns/launch-plan.md` | ✅ Готово |
-| Email шаблоны | `marketing/creatives/email-templates.md` | ✅ Готово |
-| API endpoints | `src/backend/src/story/story.controller.ts` | ✅ Готово |
-| База данных | `src/backend/prisma/schema.prisma` | ✅ Готово |
-| Бизнес-модель | `docs/reports/market-analysis.md` | ✅ Готово |
-| Пресс-релиз | `press/press-release.md` | ✅ Готово |
-| Карта проекта | `PROJECT_MAP.md` | ✅ Готово |
+### Что работало
+- `video_generator.py` — генерация видео через ffmpeg drawtext (1080x1920, 15 сек)
+- 8 сцен из всех глав в `POSTS_BANK`
+- `/post` — публикация текста в @agafon_pastyr и @zivaya_kniga (работает стабильно)
+- 3 видео сгенерированы и доступны по URL: `/tiktok_videos/video_XXX.mp4`
+
+### Где затыки
+| Этап | Проблема | Почему |
+|------|----------|--------|
+| `/preview` — генерация | Зависание 6+ минут | `subprocess.run()` блокирует asyncio event loop PTB v21 |
+| `/approve` — публикация | Не тестировалось | preview не доходил до этого шага |
+| `/debug` — диагностика | Молчал (потом починили) | `sys` не был импортирован внутри функции |
+| `aiohttp` — HTTP вызов | Render не подхватывал | Конфликт зависимостей |
+
+### Почему ломает
+PTB v21 использует `asyncio`. `subprocess.run()` — синхронный вызов, блокирует event loop на 20-30 секунд пока ffmpeg кодирует видео. Все пользователи бота зависают.
+
+### Как чинить (приоритеты)
+1. **Предгенерация** (быстрее всего) — сгенерировать 30 видео заранее, хранить, выдавать по одному
+2. **Отдельный endpoint** — Flask route `/api/generate-video` в отдельном thread
+3. **Отдельный сервис** — второй Render сервис только для генерации видео
+4. **TikTok загрузка** — Playwright + cookies (отдельный скрипт, не в боте)
+
+### Файлы (сохранены в book/)
+- `video_generator.py` — генератор
+- `auto_poster.py` — авто-постинг Telegram
+- `tiktok_poster.py` — загрузка в TikTok
+- `tiktok_easy_login.py` — логин через Chrome
+- `tiktok_videos/*.mp4` — 3 сгенерированных видео
 
 ---
 
-## 📝 Правило обновления
+## 🆘 ЧЕКЛИСТ ПРИ СБОЕ
 
-**При создании новой папки или файла:**
-1. Добавить запись в соответствующий раздел выше
-2. Обновить счётчик файлов в заголовке раздела
-3. Обновить дату и версию в шапке документа
-4. Если новая папка — новый раздел в `docs/` или `src/` — добавить в корневую таблицу
-
----
-
-*Последнее обновление: 2025-01-10 | Версия 1.0*
+| Симптом | Причина | Решение |
+|---------|---------|---------|
+| Бот отвечает «Sherlock» | BOT_TOKEN в Environment переопределяет hardcoded | Удалить `BOT_TOKEN` из Render Environment |
+| Оплата 401 | Неверные YOOKASSA credentials | Проверить shopId и secret key в ЛК ЮKassa |
+| Оплата test_mode | `YOOKASSA_TEST_MODE=true` с боевым ключом | Установить `false` |
+| Главы 4-7 открыты | Слетел paywall в bot.py | Проверить `PAID_KEYS` и `is_tg_user_paid()` |
+| 404 на картинках | Нет img/ в deploy | `cp -r book/stories/*/img deploy/stories/` |
+| Бот не стартует | SyntaxError в bot.py | `py_compile` → проверить отступы/скобки |
+| Procfile broken | `python bot.pyc` вместо `python bot.py` | Исправить на GitHub |
