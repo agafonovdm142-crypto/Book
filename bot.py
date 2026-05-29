@@ -367,22 +367,74 @@ def load_current_video():
         return None
 
 
+async def cmd_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Тестовая команда — проверяет что бот работает"""
+    await update.message.reply_text("✅ Бот работает!\n\nКоманды:\n/preview — показать видео\n/approve — опубликовать\n/reject — другое видео\n/test — проверить бота")
+
+
+async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Диагностика системы"""
+    import shutil, subprocess
+    lines = ["🔧 ДИАГНОСТИКА:"]
+    
+    # Проверяем ffmpeg
+    ffmpeg_path = shutil.which("ffmpeg")
+    lines.append(f"ffmpeg: {'✅ ' + ffmpeg_path if ffmpeg_path else '❌ не найден'}")
+    
+    # Проверяем video_generator.py
+    vg_path = Path(__file__).parent / "video_generator.py"
+    lines.append(f"video_generator.py: {'✅' if vg_path.exists() else '❌ не найден'}")
+    
+    # Проверяем директорию для видео
+    vid_dir = Path(__file__).parent / "tiktok_videos"
+    lines.append(f"tiktok_videos/: {'✅' if vid_dir.exists() else '❌ не найден'}")
+    
+    # Проверяем права на запись
+    try:
+        test_file = vid_dir / ".write_test"
+        test_file.write_text("test")
+        test_file.unlink()
+        lines.append("Запись: ✅ OK")
+    except:
+        lines.append("Запись: ❌ нет прав")
+    
+    lines.append(f"\nPYTHON: {sys.version[:30]}")
+    
+    await update.message.reply_text("\n".join(lines))
+
+
 async def cmd_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != ADMIN_TG_USER_ID:
         await update.message.reply_text("⛔ Только админ.")
         return
     await update.message.reply_text("🎬 Генерирую видео...")
+    
+    logger.info("=== PREVIEW START ===")
+    
     try:
+        logger.info("Step 1: calling generate_daily_content()")
         video_path, description, scene = video_generator.generate_daily_content()
+        logger.info(f"Step 2: video_path={video_path}")
+        
         if not video_path:
-            await update.message.reply_text("❌ Ошибка генерации")
+            logger.error("Step 2: video_path is None!")
+            await update.message.reply_text("❌ Видео не сгенерировалось. Проверьте /debug")
             return
+        
+        if not video_path.exists():
+            logger.error(f"Step 2: file not found: {video_path}")
+            await update.message.reply_text("❌ Файл не найден после генерации")
+            return
+        
+        logger.info(f"Step 3: file size={video_path.stat().st_size}")
         save_current_video(video_path, description, scene)
-        # Отправляем видео без caption
+        
+        logger.info("Step 4: sending video")
         with open(video_path, 'rb') as f:
             await update.message.reply_video(video=f)
-        # Отправляем описание отдельным сообщением
+        logger.info("Step 5: video sent OK")
+        
         await update.message.reply_text(
             f"📖 *{scene['chapter']}*\n\n"
             f"📝 *Описание для TikTok:*\n"
@@ -391,9 +443,13 @@ async def cmd_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"❌ /reject — сгенерировать другое",
             parse_mode="Markdown",
         )
+        logger.info("=== PREVIEW DONE ===")
+        
     except Exception as e:
-        logger.error(f"Preview error: {e}")
-        await update.message.reply_text(f"❌ Ошибка: {e}")
+        logger.error(f"PREVIEW ERROR: {type(e).__name__}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        await update.message.reply_text(f"❌ Ошибка генерации:\n{type(e).__name__}: {e}\n\nПроверьте /debug")
 
 
 async def cmd_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -633,6 +689,8 @@ def run_bot():
         bot_app = Application.builder().token(TOKEN).build()
         bot_app.add_handler(CommandHandler("start", start))
         bot_app.add_handler(CommandHandler("help", start))
+        bot_app.add_handler(CommandHandler("test", cmd_test))         # Тест бота
+        bot_app.add_handler(CommandHandler("debug", cmd_debug))       # Диагностика
         bot_app.add_handler(CommandHandler("preview", cmd_preview))   # Показать видео
         bot_app.add_handler(CommandHandler("approve", cmd_approve))   # Опубликовать
         bot_app.add_handler(CommandHandler("reject", cmd_reject))     # Новое видео
