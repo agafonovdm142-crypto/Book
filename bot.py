@@ -336,6 +336,96 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Cookies error: {e}")
 
 
+# ════════════════════════════════════════════════════════════════════
+# ═══════════════ VIDEO PREVIEW / APPROVE / REJECT ══════════════════
+# ════════════════════════════════════════════════════════════════════
+
+import video_generator
+
+CURRENT_VIDEO_FILE = Path(__file__).parent / "current_video.json"
+
+
+def save_current_video(video_path, description, scene):
+    data = {
+        "video_path": str(video_path),
+        "description": description,
+        "scene_id": scene["id"],
+        "chapter": scene["chapter"],
+        "text": scene["text"],
+        "hook": scene["hook"],
+        "status": "pending",
+    }
+    CURRENT_VIDEO_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def load_current_video():
+    if not CURRENT_VIDEO_FILE.exists():
+        return None
+    try:
+        return json.loads(CURRENT_VIDEO_FILE.read_text(encoding="utf-8"))
+    except:
+        return None
+
+
+async def cmd_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_TG_USER_ID:
+        await update.message.reply_text("⛔ Только админ.")
+        return
+    await update.message.reply_text("🎬 Генерирую видео...")
+    try:
+        video_path, description, scene = video_generator.generate_daily_content()
+        if not video_path:
+            await update.message.reply_text("❌ Ошибка генерации")
+            return
+        save_current_video(video_path, description, scene)
+        with open(video_path, 'rb') as f:
+            await update.message.reply_video(
+                video=f,
+                caption=f"📖 *{scene['chapter']}*\n\n📝 *Описание:*\n{description[:300]}...\n\n✅ /approve — опубликовать\n❌ /reject — другое",
+                parse_mode="Markdown",
+            )
+    except Exception as e:
+        logger.error(f"Preview error: {e}")
+        await update.message.reply_text(f"❌ Ошибка: {e}")
+
+
+async def cmd_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_TG_USER_ID:
+        await update.message.reply_text("⛔ Только админ.")
+        return
+    video_data = load_current_video()
+    if not video_data:
+        await update.message.reply_text("❌ Нет видео. Сначала /preview")
+        return
+    if video_data["status"] == "approved":
+        await update.message.reply_text("⚠️ Уже опубликовано")
+        return
+    bot = context.bot
+    channels = ["@agafon_pastyr", "@zivaya_kniga"]
+    tg_ok = 0
+    for ch in channels:
+        try:
+            with open(video_data["video_path"], 'rb') as f:
+                await bot.send_video(chat_id=ch, video=f, caption=f"🎬 {video_data['chapter']}\n\n{video_data['description'][:200]}")
+            tg_ok += 1
+        except Exception as e:
+            logger.error(f"TG error {ch}: {e}")
+    video_data["status"] = "approved"
+    CURRENT_VIDEO_FILE.write_text(json.dumps(video_data, ensure_ascii=False, indent=2), encoding="utf-8")
+    await update.message.reply_text(f"✅ ОПУБЛИКОВАНО!\n📱 Telegram: {tg_ok}/2\n📖 {video_data['chapter']}")
+
+
+async def cmd_reject(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_TG_USER_ID:
+        await update.message.reply_text("⛔ Только админ.")
+        return
+    await update.message.reply_text("🔄 Новое видео...")
+    await cmd_preview(update, context)
+
+
 # ─── BOT FUNCTIONS ───
 SITE_URL = "https://kt7ussahgizfm.kimi.page"
 
@@ -537,6 +627,9 @@ def run_bot():
         bot_app = Application.builder().token(TOKEN).build()
         bot_app.add_handler(CommandHandler("start", start))
         bot_app.add_handler(CommandHandler("help", start))
+        bot_app.add_handler(CommandHandler("preview", cmd_preview))   # Показать видео
+        bot_app.add_handler(CommandHandler("approve", cmd_approve))   # Опубликовать
+        bot_app.add_handler(CommandHandler("reject", cmd_reject))     # Новое видео
         bot_app.add_handler(CommandHandler("post", cmd_post))
         bot_app.add_handler(CommandHandler("paid", cmd_paid_list))    # NEW
         bot_app.add_handler(CommandHandler("grant", cmd_grant))       # NEW
