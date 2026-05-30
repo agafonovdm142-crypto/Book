@@ -70,12 +70,48 @@ def yookassa_check():
     if not payment_id:
         return jsonify({"error": "payment_id required"}), 400
     result = yookassa.check_payment(payment_id)
+    # Если оплачено — записываем в orders.json
+    if result.get("paid"):
+        _sync_yookassa_to_orders()
     return jsonify(result)
+
+
+def _sync_yookassa_to_orders():
+    """Синхронизирует yookassa _payments → orders.json"""
+    payments = yookassa.get_payments()
+    with _orders_lock:
+        orders = _load_orders()
+        changed = False
+        for p in payments:
+            if p.get("paid") and p.get("metadata", {}).get("tg_user_id"):
+                tg_id = p["metadata"]["tg_user_id"]
+                # Ищем если уже есть
+                found = False
+                for oid, orec in orders.items():
+                    if str(orec.get("tg_user_id")) == str(tg_id) and orec.get("paid"):
+                        found = True
+                        break
+                if not found:
+                    order_id = _new_order_id()
+                    orders[order_id] = {
+                        "order_id": order_id,
+                        "amount": p.get("amount", 199),
+                        "tg_user_id": tg_id,
+                        "paid": True,
+                        "paid_at": int(time.time()),
+                        "yookassa_payment_id": p["id"],
+                    }
+                    changed = True
+                    logger.info(f"Synced YooKassa payment {p['id']} → order {order_id} for user {tg_id}")
+        if changed:
+            _save_orders(orders)
 
 @app.route("/api/yookassa/webhook", methods=["POST"])
 def yookassa_webhook():
     data = request.get_json(silent=True) or {}
     yookassa.handle_webhook(data)
+    # Синхронизируем оплаченные платежи → orders.json
+    _sync_yookassa_to_orders()
     return jsonify({"status": "ok"}), 200
 
 # ═══════════════════════════════════════════════
@@ -305,13 +341,28 @@ async def cmd_grant(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Заказ {order_id} не найден или уже оплачен.")
 
 
+async def cmd_sync(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Принудительная синхронизация ЮKassa → orders.json"""
+    user_id = update.effective_user.id
+    if user_id != ADMIN_TG_USER_ID:
+        await update.message.reply_text("⛔ Только админ.")
+        return
+    try:
+        _sync_yookassa_to_orders()
+        orders = _load_orders()
+        paid_count = sum(1 for o in orders.values() if o.get("paid"))
+        await update.message.reply_text(f"✅ Синхронизация выполнена.\nОплаченных заказов: {paid_count}")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка: {e}")
+
+
 async def cmd_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "✅ Бот работает!\n\n"
         "Команды:\n"
         "/start — начать\n"
         "/post [ключ] — пост в каналы\n"
-        "/preview — показать сцену (Тест)\n"
+        "/sync — синхронизировать оплаты\n"
         "/paid — список заказов\n"
         "/grant JK-XXXX — подтвердить оплату"
     )
@@ -329,6 +380,7 @@ def run_bot():
         bot_app.add_handler(CommandHandler("post", cmd_post))
         bot_app.add_handler(CommandHandler("paid", cmd_paid))
         bot_app.add_handler(CommandHandler("grant", cmd_grant))
+        bot_app.add_handler(CommandHandler("sync", cmd_sync))
         bot_app.add_handler(CommandHandler("test", cmd_test))
         bot_app.add_handler(CallbackQueryHandler(button))
         bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
