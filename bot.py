@@ -45,7 +45,7 @@ CORS(app, resources={r"/api/*": {"origins": "*"}})
 # YOOKASSA
 # ═══════════════════════════════════════════════
 
-import yookassa
+import yookassa_api as yookassa
 
 @app.route("/")
 def index():
