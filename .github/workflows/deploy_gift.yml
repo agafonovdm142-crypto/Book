@@ -1,0 +1,19 @@
+name: Deploy Gift Unlocker
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inject Gift Unlocker
+        run: |
+          sed -i '0,/<body>/s|<body>|<body>\n<script>\n(function() {\n    const url = window.location.href;\n    const hasGift = url.includes("gift=") && url.includes("universal=true");\n    if (hasGift) {\n        localStorage.setItem("zhivaya_kniga_paid", "true");\n        localStorage.setItem("zhivaya_kniga_gift", "activated");\n        window.history.replaceState({}, "", window.location.pathname);\n        setTimeout(function() {\n            alert("🔓 Все главы открыты! Приятного чтения ❤️");\n        }, 500);\n    }\n    window.isBookPaid = function() {\n        return localStorage.getItem("zhivaya_kniga_paid") === "true" || localStorage.getItem("paid") === "true";\n    };\n    window.unlockAllChapters = function() {\n        document.querySelectorAll(".lock-icon, .lock, .locked, .chapter-locked").forEach(function(el) {\n            el.style.display = "none";\n        });\n        document.querySelectorAll(".chapter-locked").forEach(function(ch) {\n            ch.classList.remove("chapter-locked");\n            ch.classList.add("chapter-unlocked");\n        });\n        document.querySelectorAll(".buy-btn, .pay-btn").forEach(function(btn) {\n            btn.style.display = "none";\n        });\n    };\n    document.addEventListener("DOMContentLoaded", function() {\n        if (window.isBookPaid()) {\n            window.unlockAllChapters();\n        }\n    });\n    if (document.readyState === "complete" || document.readyState === "interactive") {\n        if (window.isBookPaid()) {\n            window.unlockAllChapters();\n        }\n    }\n})();\n</script>|' deploy/index.html
+      - name: Commit
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add deploy/index.html
+          git commit -m "🔓 Gift Unlocker"
+          git push origin main
