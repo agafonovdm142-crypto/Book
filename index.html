@@ -1,187 +1,105 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Живая Книга</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Montserrat:wght@300;400;500;600&display=swap');
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Montserrat',sans-serif;background:linear-gradient(135deg,#1a0f0a 0%,#2d1a12 50%,#1a1410 100%);color:#f5ede4;min-height:100vh}
-  .container{max-width:720px;margin:0 auto;padding:20px 16px 40px}
-  .header{text-align:center;padding:40px 0 30px}
-  .header h1{font-family:'Cormorant Garamond',serif;font-size:2.8em;color:#d4af89;font-weight:400;font-style:italic;margin-bottom:8px}
-  .header .subtitle{font-size:0.85em;color:#a89080;letter-spacing:4px;text-transform:uppercase;margin-bottom:16px}
-  .header .desc{font-family:'Cormorant Garamond',serif;font-size:1.15em;color:#c4a882;font-style:italic;line-height:1.6}
-  .divider{width:60px;height:1px;background:linear-gradient(90deg,transparent,#d4af89,transparent);margin:30px auto}
-  .chapter-list{display:flex;flex-direction:column;gap:14px}
-  .chapter-card{display:flex;align-items:center;background:rgba(212,175,137,0.06);border:1px solid rgba(212,175,137,0.15);border-radius:12px;padding:0;text-decoration:none;color:inherit;transition:all 0.3s ease;overflow:hidden}
-  .chapter-card:hover{background:rgba(212,175,137,0.12);border-color:rgba(212,175,137,0.35);transform:translateY(-2px)}
-  .chapter-img{width:100px;height:80px;object-fit:cover;flex-shrink:0}
-  .chapter-num{font-family:'Cormorant Garamond',serif;font-size:2em;color:#d4af89;opacity:0.6;margin:0 14px;min-width:36px;text-align:center}
-  .chapter-info{flex:1;padding:14px 0}
-  .chapter-title{font-family:'Cormorant Garamond',serif;font-size:1.25em;color:#f5ede4;margin-bottom:4px}
-  .chapter-sub{font-size:0.8em;color:#a89080}
-  .chapter-arrow{color:#d4af89;opacity:0.5;font-size:1.2em;margin:0 18px 0 10px}
-  .chapter-card:hover .chapter-arrow{opacity:1}
-  .chapter-card.coming-soon{opacity:0.5;pointer-events:none}
-  @media(max-width:600px){.chapter-img{width:70px;height:60px}.chapter-num{font-size:1.6em;margin:0 10px;min-width:28px}}
-  .footer{text-align:center;padding:40px 0 20px;color:#a89080;font-size:0.8em;letter-spacing:2px}
-  @media(max-width:600px){.header h1{font-size:2.2em}.chapter-title{font-size:1.1em}}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Живая Книга</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: white; }
+        .chapter { padding: 20px; margin: 10px; background: rgba(255,255,255,0.1); border-radius: 15px; cursor: pointer; }
+        .chapter-locked { opacity: 0.6; position: relative; }
+        .lock-icon { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 24px; }
+        .chapter-unlocked { opacity: 1; }
+        .chapter-unlocked .lock-icon { display: none; }
+        .buy-btn { background: #e94560; color: white; padding: 10px 20px; border: none; border-radius: 20px; cursor: pointer; margin-top: 10px; }
+    </style>
 </head>
-<body data-chapter="cover">
-<div class="container">
-  <div class="header">
-    <div class="subtitle">Интерактивные истории</div>
-    <img src="img/avatar_agafon.jpg" alt="Агафон Пастырь" style="width:80px;height:80px;border-radius:50%;border:2px solid #d4af89;margin:10px auto;object-fit:cover;box-shadow:0 0 20px rgba(212,175,137,0.3)">
-    <h1>Живая Книга</h1>
-    <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:1.1em;color:#a89080;margin-bottom:5px">«Он ведёт. Ты чувствуешь.»</div>
-    <div style="font-size:0.8em;color:#d4af89;opacity:0.7;margin-bottom:20px">✦ Агафон Пастырь ✦</div>
-    <p class="desc">Каждый выбор меняет сюжет.<br>Каждая глава — новая история о себе.</p>
-    <p id="statsLine" style="font-size:0.85em;color:#a89080;margin-top:12px;min-height:20px;"></p>
-  </div>
-  
-  <div class="divider"></div>
-  
-  <div class="chapter-list">
-    <a href="stories/01-subbotnee-utro/index.html" class="chapter-card">
-      <img src="img/g1_cover.jpg?v=2" class="chapter-img" alt="">
-      <div class="chapter-num">I</div>
-      <div class="chapter-info">
-        <div class="chapter-title">Субботнее утро</div>
-        <div class="chapter-sub">103 сцены &middot; Три мужчины. Три пути. Одно утро.</div>
-      </div>
-      <div class="chapter-arrow">&rarr;</div>
-    </a>
-    
-    <a href="stories/02-vecher-s-maksom/index.html" class="chapter-card">
-      <img src="img/g2_cover.jpg?v=2" class="chapter-img" alt="">
-      <div class="chapter-num">II</div>
-      <div class="chapter-info">
-        <div class="chapter-title">Вечер с Максом</div>
-        <div class="chapter-sub">17 сцен &middot; Ужин, кино, и что было после.</div>
-      </div>
-      <div class="chapter-arrow">&rarr;</div>
-    </a>
-    
-    <a href="stories/03-noch-s-leshey/index.html" class="chapter-card">
-      <img src="img/g3_cover.jpg?v=2" class="chapter-img" alt="">
-      <div class="chapter-num">III</div>
-      <div class="chapter-info">
-        <div class="chapter-title">Ночь с Лёшей</div>
-        <div class="chapter-sub">14 сцен &middot; Балкон, дождь, рассвет.</div>
-      </div>
-      <div class="chapter-arrow">&rarr;</div>
-    </a>
-    
-    <a href="pay.html" class="chapter-card" style="opacity:0.7">
-      <img src="img/g4_cover.jpg?v=2" class="chapter-img" alt="" style="filter:grayscale(0.5)">
-      <div class="chapter-num">IV</div>
-      <div class="chapter-info">
-        <div class="chapter-title">🔒 Мастерская Артёма</div>
-        <div class="chapter-sub">20 сцен &middot; Краски, холсты, чувственность через искусство.</div>
-      </div>
-      <div class="chapter-arrow">🔒</div>
-    </a>
-    
-    <a href="pay.html" class="chapter-card" style="opacity:0.7">
-      <img src="img/g5_cover.jpg?v=2" class="chapter-img" alt="" style="filter:grayscale(0.5)">
-      <div class="chapter-num">V</div>
-      <div class="chapter-info">
-        <div class="chapter-title">🔒 Воскресенье — Финал</div>
-        <div class="chapter-sub">14 сцен &middot; Все пути ведут к себе. Ты решаешь.</div>
-      </div>
-      <div class="chapter-arrow">🔒</div>
-    </a>
-    
-    <a href="pay.html" class="chapter-card" style="opacity:0.7">
-      <img src="img/g6_cover.jpg?v=2" class="chapter-img" alt="" style="filter:grayscale(0.5)">
-      <div class="chapter-num">VI</div>
-      <div class="chapter-info">
-        <div class="chapter-title">🔒 Властный — Перчинка</div>
-        <div class="chapter-sub">23 сцены &middot; Когда контроль — это свобода.</div>
-      </div>
-      <div class="chapter-arrow">🔒</div>
-    </a>
-    
-    <a href="pay.html" class="chapter-card" style="opacity:0.7">
-      <img src="img/g7_cover.jpg" class="chapter-img" alt="" style="filter:grayscale(0.5)">
-      <div class="chapter-num">VII</div>
-      <div class="chapter-info">
-        <div class="chapter-title">🔒 Шибари — Мастер</div>
-        <div class="chapter-sub">7 сцен &middot; Веревки, доверие, искусство.</div>
-      </div>
-      <div class="chapter-arrow">🔒</div>
-      <div class="chapter-arrow">&rarr;</div>
-    </a>
-  </div>
-  
-  <div class="divider"></div>
-  
-  <a href="pay.html" class="chapter-card" style="background:rgba(212,175,137,0.12);border-color:rgba(212,175,137,0.3);margin-bottom:10px">
-    <div style="width:80px;height:60px;display:flex;align-items:center;justify-content:center;font-size:1.8em">🔓</div>
-    <div style="flex:1;padding:14px 0">
-      <div style="font-family:'Cormorant Garamond',serif;font-size:1.2em;color:#d4af89">Главы 4-7 — 199 ₽</div>
-      <div style="font-size:0.8em;color:#a89080">Все 6 глав, все сцены, навсегда</div>
-    </div>
-    <div class="chapter-arrow">&rarr;</div>
-  </a>
-  <p style="text-align:center;color:#5a7a5a;font-size:0.7em;margin-bottom:20px">🔒 Оплата через СБП (ЦБ РФ) — комиссия 0%</p>
-  
-  <div class="divider"></div>
-  
-  <div class="footer">
-    ЖИВАЯ КНИГА &middot; 2025<br>
-    <a href="terms.html" style="color:#a89080;text-decoration:none;font-size:0.85em;">Условия</a> &middot;
-    <a href="privacy.html" style="color:#a89080;text-decoration:none;font-size:0.85em;">Конфиденциальность</a> &middot;
-    <a href="refund.html" style="color:#a89080;text-decoration:none;font-size:0.85em;">Возврат</a> &middot;
-    <a href="contacts.html" style="color:#a89080;text-decoration:none;font-size:0.85em;">Контакты</a><br><br>
-    <a href="contacts.html" style="color:#a89080;text-decoration:none;font-size:0.75em">Реквизиты →</a>
-  </div>
-</div>
+<body>
+    <h1 style="text-align: center; padding: 20px;">Живая Книга</h1>
 
-<script>
-// Show reading progress on cover
-(function(){
-  const chapters = [
-    {id:'01', key:'zhivaya_kniga_g6_01', num:'I', title:'Субботнее утро'},
-    {id:'02', key:'zhivaya_kniga_g2_01', num:'II', title:'Вечер с Максом'},
-    {id:'03', key:'zhivaya_kniga_g3_01', num:'III', title:'Ночь с Лёшей'},
-    {id:'04', key:'zhivaya_kniga_g4_01', num:'IV', title:'Мастерская Артёма'},
-    {id:'05', key:'zhivaya_kniga_g5_01', num:'V', title:'Воскресенье — Финал'},
-    {id:'06', key:'zhivaya_kniga_g6_01', num:'VI', title:'Властный — Перчинка'},
-  ];
-  
-  let completed = 0;
-  let started = 0;
-  
-  chapters.forEach(function(ch) {
-    try {
-      var data = JSON.parse(localStorage.getItem(ch.key) || '{}');
-      var card = document.querySelector('a[href*="' + ch.id + '-"]');
-      if (!card) return;
-      
-      var arrow = card.querySelector('.chapter-arrow');
-      var sub = card.querySelector('.chapter-sub');
-      
-      if (data.completed) {
-        completed++;
-        if (arrow) arrow.innerHTML = '✓';
-        if (arrow) arrow.style.color = '#4CAF50';
-        if (sub) sub.innerHTML = '✓ Прочитано &middot; ' + sub.innerHTML;
-      } else if (data.scenesViewed && data.scenesViewed.length > 0) {
-        started++;
-        if (arrow) arrow.innerHTML = '↳';
-        if (sub) sub.innerHTML = '↳ Продолжить &middot; ' + sub.innerHTML;
-      }
-    } catch(e) {}
-  });
-  
-  var stats = document.getElementById('statsLine');
-  if (stats && (completed > 0 || started > 0)) {
-    stats.innerHTML = '📚 Прочитано: ' + completed + '/6' + 
-      (started > 0 ? ' &nbsp;|&nbsp; Начато: ' + started : '');
-  }
-})();
-<
+    <!-- Главы 1-3 (бесплатно) -->
+    <div class="chapter" data-chapter="1" onclick="openChapter(1)">
+        Глава 1: Субботнее утро
+        <span class="lock-icon">🔓</span>
+    </div>
+    <div class="chapter" data-chapter="2" onclick="openChapter(2)">
+        Глава 2: Вечер с Максом
+        <span class="lock-icon">🔓</span>
+    </div>
+    <div class="chapter" data-chapter="3" onclick="openChapter(3)">
+        Глава 3: Ночь с Лёшей
+        <span class="lock-icon">🔓</span>
+    </div>
+
+    <!-- Главы 4-7 (платные) -->
+    <div class="chapter chapter-locked" data-chapter="4" data-locked="true">
+        Глава 4: Мастерская Артёма (199₽)
+        <span class="lock-icon">🔒</span>
+        <button class="buy-btn" onclick="buyChapter(4)">Купить</button>
+    </div>
+    <div class="chapter chapter-locked" data-chapter="5" data-locked="true">
+        Глава 5: ...
+        <span class="lock-icon">🔒</span>
+    </div>
+    <div class="chapter chapter-locked" data-chapter="6" data-locked="true">
+        Глава 6: ...
+        <span class="lock-icon">🔒</span>
+    </div>
+    <div class="chapter chapter-locked" data-chapter="7" data-locked="true">
+        Глава 7: ...
+        <span class="lock-icon">🔒</span>
+    </div>
+
+    <script>
+    // === УНИВЕРСАЛЬНЫЙ PAYWALL ===
+    (function() {
+        // Подарочная ссылка
+        const url = window.location.href;
+        const hasGift = url.includes('gift=') && url.includes('universal=true');
+        if (hasGift) {
+            localStorage.setItem('zhivaya_kniga_paid', 'true');
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+
+        // Проверка доступа (все ключи)
+        window.isBookPaid = function() {
+            return localStorage.getItem('paid') === 'true' 
+                || localStorage.getItem('zhivaya_kniga_paid') === 'true';
+        };
+
+        // Открытие глав
+        window.unlockAllChapters = function() {
+            document.querySelectorAll('.chapter-locked').forEach(function(ch) {
+                ch.classList.remove('chapter-locked');
+                ch.classList.add('chapter-unlocked');
+                ch.removeAttribute('data-locked');
+                ch.style.pointerEvents = 'auto';
+                ch.onclick = function() { openChapter(this.dataset.chapter); };
+            });
+            document.querySelectorAll('.buy-btn').forEach(function(btn) {
+                btn.style.display = 'none';
+            });
+        };
+
+        // При загрузке
+        if (window.isBookPaid()) {
+            window.unlockAllChapters();
+        }
+    })();
+
+    function openChapter(id) {
+        if (id > 3 && !window.isBookPaid()) {
+            alert('Глава платная. Нажмите "Купить"');
+            return;
+        }
+        alert('Открываю главу ' + id);
+    }
+
+    function buyChapter(id) {
+        alert('Переходим к оплате...');
+        // Здесь ссылка на ЮKassa
+    }
+    </script>
+</body>
+</html>
