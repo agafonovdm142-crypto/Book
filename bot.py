@@ -1,403 +1,346 @@
-#!/usr/bin/env python3
 """
-Живая Книга — Telegram Bot
-Стабильная версия: главы, paywall, постинг в каналы
+Живая Книга — Telegram Bot + Flask
+Версия: 2.1 (Supabase PostgreSQL)
+Дата: 2026-06-04
 """
-import os, io, json, base64, logging, threading, asyncio, uuid, string, random, time, hashlib
-from pathlib import Path
+
+import os
+import json
+import hashlib
+import threading
+import asyncio
+import logging
+from datetime import datetime
 from flask import Flask, request, jsonify
-from flask_cors import CORS
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, Bot
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
-import qrcode
-import requests
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-# ═══════════════════════════════════════════════
-# CONFIG
-# ═══════════════════════════════════════════════
+# Telegram
+try:
+    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+    from telegram.ext import (
+        Application, CommandHandler, CallbackQueryHandler,
+        ContextTypes, MessageHandler, filters
+    )
+    PTB_AVAILABLE = True
+except ImportError:
+    PTB_AVAILABLE = False
+    print("WARNING: python-telegram-bot not available")
 
-TOKEN = "8712020124:AAF_Ze10P7gd9rQktUX09PKYuqsalLnGNWs"
-ADMIN_PASSWORD = "121114"
-ADMIN_TG_USER_ID = int(os.environ.get("ADMIN_TG_USER_ID", "0") or "0")
-AGAFON_CHANNEL = "agafon_pastyr"
-BOOK_CHANNEL = "zivaya_kniga"
-SITE_URL = "https://kt7ussahgizfm.kimi.page"
-
-CHAPTERS = {
-    "ch1": {"title": "Глава 1 — Субботнее утро", "url": f"{SITE_URL}/stories/01-subbotnee-utro/index.html"},
-    "ch2": {"title": "Глава 2 — Вечер с Максом", "url": f"{SITE_URL}/stories/02-vecher-s-maksom/index.html"},
-    "ch3": {"title": "Глава 3 — Ночь с Лёшей", "url": f"{SITE_URL}/stories/03-noch-s-leshey/index.html"},
-    "ch4": {"title": "Глава 4 — Мастерская Артёма", "url": f"{SITE_URL}/stories/04-masterskaya-artema/index.html"},
-    "ch5": {"title": "Глава 5 — Воскресенье", "url": f"{SITE_URL}/stories/05-voskresene/index.html"},
-    "ch6": {"title": "Глава 6 — Властный", "url": f"{SITE_URL}/stories/06-vlastnyy/index.html"},
-    "ch7": {"title": "Глава 7 — Шибари-мастер", "url": f"{SITE_URL}/stories/07-shibari/index.html"},
-}
-
-PAID_KEYS = {"ch4", "ch5", "ch6", "ch7"}
-
-logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+# === LOGGING ===
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# === CONFIG ===
+BOT_TOKEN = os.environ.get('BOT_TOKEN', '8712024124:AAF_Ze10P7gd9rQktUX09PKYuqsalLnGNWs')
+PORT = int(os.environ.get('PORT', 10000))
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
+ADMIN_TG_USER_ID = int(os.environ.get('ADMIN_TG_USER_ID', '0'))
 
-# ═══════════════════════════════════════════════
-# YOOKASSA
-# ═══════════════════════════════════════════════
-
-import yookassa_api as yookassa
-
-@app.route("/")
-def index():
-    return "Живая Книга Bot is running. <a href='https://t.me/Jivaya_kniga_bot'>Open Bot</a>"
-
-@app.route("/health")
-def health():
-    return {"status": "ok", "bot": "running"}
-
-@app.route("/api/yookassa/create-payment", methods=["POST"])
-def yookassa_create_payment():
-    body = request.get_json(silent=True) or {}
-    amount = int(body.get("amount", 199))
-    tg_user_id = body.get("tg_user_id")
-    return_url = body.get("return_url", f"{SITE_URL}/success.html")
-    result = yookassa.create_payment(amount=amount, description="Живая Книга — Полный доступ", return_url=return_url, metadata={"tg_user_id": str(tg_user_id) if tg_user_id else ""})
-    return jsonify(result)
-
-@app.route("/api/yookassa/check", methods=["GET"])
-def yookassa_check():
-    payment_id = request.args.get("payment_id", "")
-    if not payment_id:
-        return jsonify({"error": "payment_id required"}), 400
-    result = yookassa.check_payment(payment_id)
-    # Если оплачено — записываем в orders.json
-    if result.get("paid"):
-        _sync_yookassa_to_orders()
-    return jsonify(result)
-
-
-def _sync_yookassa_to_orders():
-    """Синхронизирует yookassa _payments → orders.json"""
-    payments = yookassa.get_payments()
-    with _orders_lock:
-        orders = _load_orders()
-        changed = False
-        for p in payments:
-            if p.get("paid") and p.get("metadata", {}).get("tg_user_id"):
-                tg_id = p["metadata"]["tg_user_id"]
-                # Ищем если уже есть
-                found = False
-                for oid, orec in orders.items():
-                    if str(orec.get("tg_user_id")) == str(tg_id) and orec.get("paid"):
-                        found = True
-                        break
-                if not found:
-                    order_id = _new_order_id()
-                    orders[order_id] = {
-                        "order_id": order_id,
-                        "amount": p.get("amount", 199),
-                        "tg_user_id": tg_id,
-                        "paid": True,
-                        "paid_at": int(time.time()),
-                        "yookassa_payment_id": p["id"],
-                    }
-                    changed = True
-                    logger.info(f"Synced YooKassa payment {p['id']} → order {order_id} for user {tg_id}")
-        if changed:
-            _save_orders(orders)
-
-@app.route("/api/yookassa/webhook", methods=["POST"])
-def yookassa_webhook():
-    data = request.get_json(silent=True) or {}
-    yookassa.handle_webhook(data)
-    # Синхронизируем оплаченные платежи → orders.json
-    _sync_yookassa_to_orders()
-    return jsonify({"status": "ok"}), 200
-
-# ═══════════════════════════════════════════════
-# SBP (запасной вариант)
-# ═══════════════════════════════════════════════
-
-SBP_PHONE = os.environ.get("SBP_PHONE", "")
-SBP_RECIPIENT_NAME = os.environ.get("SBP_RECIPIENT_NAME", "Получатель")
-SBP_AMOUNT_DEFAULT = int(os.environ.get("SBP_AMOUNT", "199"))
-ORDERS_FILE = Path(__file__).parent / "orders.json"
-_orders_lock = threading.Lock()
-
-def _load_orders():
-    if not ORDERS_FILE.exists():
-        return {}
+# === DATABASE ===
+def get_db_connection():
+    """Get PostgreSQL connection"""
+    if not DATABASE_URL:
+        return None
     try:
-        return json.loads(ORDERS_FILE.read_text(encoding="utf-8"))
-    except:
-        return {}
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        return conn
+    except Exception as e:
+        logger.error(f"DB connection error: {e}")
+        return None
 
-def _save_orders(data):
-    ORDERS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-def _new_order_id():
-    return "JK-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
-
-def _qr_png_base64(payload):
-    img = qrcode.make(payload)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
-
-def is_tg_user_paid(tg_user_id):
-    for r in _load_orders().values():
-        if r.get("paid") and r.get("tg_user_id") == tg_user_id:
+def init_db():
+    """Initialize database tables"""
+    conn = get_db_connection()
+    if not conn:
+        logger.error("Cannot init DB - no connection")
+        return False
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS payments (
+                    user_id BIGINT PRIMARY KEY,
+                    order_id TEXT,
+                    amount INTEGER,
+                    status TEXT DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS payment_history (
+                    id SERIAL PRIMARY KEY,
+                    user_id BIGINT,
+                    order_id TEXT,
+                    amount INTEGER,
+                    status TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            conn.commit()
+            logger.info("Database initialized successfully")
             return True
+    except Exception as e:
+        logger.error(f"DB init error: {e}")
+        return False
+    finally:
+        conn.close()
+
+def is_user_paid(user_id):
+    """Check if user has paid access"""
+    conn = get_db_connection()
+    if not conn:
+        # Fallback: check local file
+        return _check_local_payments(user_id)
+    
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT * FROM payments WHERE user_id = %s AND status = 'succeeded'",
+                (user_id,)
+            )
+            result = cur.fetchone()
+            return result is not None
+    except Exception as e:
+        logger.error(f"DB check error: {e}")
+        return _check_local_payments(user_id)
+    finally:
+        conn.close()
+
+def _check_local_payments(user_id):
+    """Fallback: check local orders.json"""
+    try:
+        with open('orders.json', 'r') as f:
+            orders = json.load(f)
+            for order in orders.values():
+                if str(order.get('user_id')) == str(user_id) and order.get('status') == 'succeeded':
+                    return True
+    except:
+        pass
     return False
 
-def _mark_paid_and_notify(order_id, bot_token=None):
-    with _orders_lock:
-        orders = _load_orders()
-        rec = orders.get(order_id)
-        if not rec or rec.get("paid"):
-            return False
-        rec["paid"] = True
-        rec["paid_at"] = int(time.time())
-        _save_orders(orders)
-    tg_user_id = rec.get("tg_user_id")
-    if tg_user_id and bot_token:
-        try:
-            Bot(token=bot_token).send_message(
-                chat_id=tg_user_id,
-                text="✅ Оплата получена! Доступ к главам 4-7 открыт.\n\n👉 t.me/Jivaya_kniga_bot"
-            )
-        except:
-            pass
-    return True
+def add_payment(user_id, order_id, amount, status='succeeded'):
+    """Add or update payment record"""
+    conn = get_db_connection()
+    if not conn:
+        return False
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO payments (user_id, order_id, amount, status, updated_at)
+                VALUES (%s, %s, %s, %s, NOW())
+                ON CONFLICT (user_id) DO UPDATE SET
+                    order_id = EXCLUDED.order_id,
+                    amount = EXCLUDED.amount,
+                    status = EXCLUDED.status,
+                    updated_at = NOW()
+            """, (user_id, order_id, amount, status))
+            
+            cur.execute("""
+                INSERT INTO payment_history (user_id, order_id, amount, status)
+                VALUES (%s, %s, %s, %s)
+            """, (user_id, order_id, amount, status))
+            
+            conn.commit()
+            return True
+    except Exception as e:
+        logger.error(f"DB add payment error: {e}")
+        return False
+    finally:
+        conn.close()
 
-# ═══════════════════════════════════════════════
-# BOT KEYBOARDS
-# ═══════════════════════════════════════════════
+def get_payment_stats():
+    """Get payment statistics"""
+    conn = get_db_connection()
+    if not conn:
+        return {"total": 0, "succeeded": 0, "failed": 0}
+    
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT COUNT(*) as total FROM payments")
+            total = cur.fetchone()['total']
+            
+            cur.execute("SELECT COUNT(*) as succeeded FROM payments WHERE status = 'succeeded'")
+            succeeded = cur.fetchone()['succeeded']
+            
+            return {"total": total, "succeeded": succeeded, "failed": total - succeeded}
+    except Exception as e:
+        logger.error(f"DB stats error: {e}")
+        return {"total": 0, "succeeded": 0, "failed": 0}
+    finally:
+        conn.close()
 
-def main_menu_kb():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📖 Выбрать главу", callback_data="chapters")],
-        [InlineKeyboardButton("🏠 Главная страница", url=SITE_URL)],
-        [InlineKeyboardButton("📄 Условия и возврат", url=f"{SITE_URL}/terms.html")],
-        [InlineKeyboardButton("💬 Написать автору", url="https://t.me/agafon_pastyr")],
-        [InlineKeyboardButton("📊 Аналитика 🔐", callback_data="stats_prompt")],
-    ])
+# === FLASK APP ===
+app = Flask(__name__)
 
-def chapter_kb():
-    buttons = []
-    for key, ch in CHAPTERS.items():
-        title = f"🔒 {ch['title']}" if key in PAID_KEYS else ch["title"]
-        buttons.append([InlineKeyboardButton(title, callback_data=key)])
-    buttons.append([InlineKeyboardButton("← Назад", callback_data="main")])
-    return InlineKeyboardMarkup(buttons)
+@app.route('/')
+def health():
+    return jsonify({
+        "status": "ok",
+        "service": "jivaya-kniga-bot",
+        "version": "2.1",
+        "database": "connected" if get_db_connection() else "disconnected"
+    })
 
-# ═══════════════════════════════════════════════
-# BOT HANDLERS
-# ═══════════════════════════════════════════════
+@app.route('/health')
+def detailed_health():
+    stats = get_payment_stats()
+    return jsonify({
+        "status": "ok",
+        "database": "connected" if get_db_connection() else "disconnected",
+        "payments": stats
+    })
 
+@app.route('/api/sync', methods=['POST'])
+def sync_payments():
+    """Sync payments from webhook or manual sync"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data"}), 400
+        
+        user_id = data.get('user_id')
+        order_id = data.get('order_id')
+        amount = data.get('amount', 199)
+        status = data.get('status', 'succeeded')
+        
+        if not user_id or not order_id:
+            return jsonify({"error": "Missing user_id or order_id"}), 400
+        
+        success = add_payment(user_id, order_id, amount, status)
+        if success:
+            return jsonify({"status": "ok", "message": "Payment synced"})
+        else:
+            return jsonify({"error": "Failed to sync"}), 500
+    except Exception as e:
+        logger.error(f"Sync error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# === TELEGRAM BOT ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
+    """Start command"""
+    user_id = update.effective_user.id
+    is_paid = is_user_paid(user_id)
+    
+    welcome_text = (
         "📖 *Живая Книга*\n\n"
         "Интерактивные истории, где каждый выбор меняет всё.\n\n"
         "3 главы бесплатно. Главы 4–7 — 199₽ навсегда.\n\n"
-        "Нажми кнопку ниже 👇",
-        parse_mode="Markdown",
-        reply_markup=main_menu_kb(),
-        disable_web_page_preview=True,
+        "Нажми кнопку ниже 👇"
+    )
+    
+    keyboard = [
+        [InlineKeyboardButton("📖 Выбрать главу", callback_data='select_chapter')],
+        [InlineKeyboardButton("🏠 Главная страница", url='https://kt7ussahgizfm.kimi.page')],
+        [InlineKeyboardButton("📄 Условия и возврат", url='https://kt7ussahgizfm.kimi.page/terms.html')],
+        [InlineKeyboardButton("💬 Написать автору", url='https://t.me/agafon_pastyr')],
+    ]
+    
+    if is_paid:
+        keyboard.insert(1, [InlineKeyboardButton("✅ Доступ открыт (все главы)", callback_data='all_chapters')])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
+
+async def select_chapter(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show chapter selection"""
+    query = update.callback_query
+    user_id = query.from_user.id
+    is_paid = is_user_paid(user_id)
+    
+    chapters = [
+        ("Глава 1 — Субботнее утро", "https://kt7ussahgizfm.kimi.page/stories/01-subbotnee-utro/index.html", False),
+        ("Глава 2 — Вечер с Максом", "https://kt7ussahgizfm.kimi.page/stories/02-vecher-s-maksom/index.html", False),
+        ("Глава 3 — Ночь с Лёшей", "https://kt7ussahgizfm.kimi.page/stories/03-noch-s-leshey/index.html", False),
+        ("Глава 4 — Мастерская Артёма 🔒", "https://kt7ussahgizfm.kimi.page/pay.html", True),
+        ("Глава 5 — Воскресенье 🔒", "https://kt7ussahgizfm.kimi.page/pay.html", True),
+        ("Глава 6 — Властный 🔒", "https://kt7ussahgizfm.kimi.page/pay.html", True),
+        ("Глава 7 — Шибари 🔒", "https://kt7ussahgizfm.kimi.page/pay.html", True),
+    ]
+    
+    keyboard = []
+    for name, url, locked in chapters:
+        if locked and not is_paid:
+            keyboard.append([InlineKeyboardButton(f"🔒 {name}", url=url)])
+        else:
+            keyboard.append([InlineKeyboardButton(name, url=url)])
+    
+    keyboard.append([InlineKeyboardButton("« Назад", callback_data='start')])
+    
+    await query.answer()
+    await query.edit_message_text(
+        "📚 *Выбери главу:*\n\n" + ("✅ У вас открыт доступ ко всем главам!" if is_paid else "🔒 Главы 4–7 доступны после оплаты 199₽"),
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='Markdown'
     )
 
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-    d = q.data
-    user_id = q.from_user.id
-
-    if d == "chapters":
-        await q.edit_message_text("📖 Выбери главу:", reply_markup=chapter_kb())
-
-    elif d == "main":
-        await q.edit_message_text("📖 *Живая Книга*", parse_mode="Markdown", reply_markup=main_menu_kb())
-
-    elif d == "stats_prompt":
-        context.chat_data["awaiting"] = True
-        await q.edit_message_text("🔐 Введи пароль:", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("← Назад", callback_data="main")]]))
-
-    elif d in CHAPTERS:
-        ch = CHAPTERS[d]
-
-        # Проверка paywall для глав 4-7
-        if d in PAID_KEYS and not is_tg_user_paid(user_id):
-            await q.edit_message_text(
-                f"📖 *{ch['title']}* 🔒\n\n"
-                f"Эта глава доступна после оплаты.\n\n"
-                f"💳 *199 ₽* — доступ ко всем главам 4-7 навсегда\n\n"
-                f"Нажми «Оплатить» и возвращайся — я открою главы автоматически.",
-                parse_mode="Markdown",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("💳 Оплатить 199 ₽", url=f"{SITE_URL}/pay.html")],
-                    [InlineKeyboardButton("← Назад", callback_data="chapters")],
-                ]),
-            )
-        else:
-            await q.edit_message_text(
-                f"📖 *{ch['title']}*\n\n👉 [{ch['title']}]({ch['url']})",
-                parse_mode="Markdown",
-                disable_web_page_preview=True,
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("▶️ Начать чтение", url=ch["url"])],
-                    [InlineKeyboardButton("← Назад", callback_data="chapters")],
-                ]),
-            )
-
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.chat_data.get("awaiting"):
-        context.chat_data["awaiting"] = False
-        if update.message.text.strip() == ADMIN_PASSWORD:
-            await update.message.reply_text(
-                "📊 *Аналитика*\n\n"
-                "Выбери главу → смотри метрики в stats.html\n"
-                f"{SITE_URL}/stats.html",
-                parse_mode="Markdown",
-                reply_markup=main_menu_kb(),
-            )
-        else:
-            await update.message.reply_text("❌ Неверный пароль.", reply_markup=main_menu_kb())
-    else:
-        await update.message.reply_text("📖 Меню:", reply_markup=main_menu_kb())
-
-async def cmd_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ручная публикация в каналы через /post [ключ]"""
+async def sync_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Manual sync command"""
     user_id = update.effective_user.id
-    if user_id != ADMIN_TG_USER_ID:
-        await update.message.reply_text("⛔ Только админ.")
-        return
-
-    key = (context.args[0] if context.args else "intro").lower()
-
-    POSTS = {
-        "intro": {
-            "text": "🌅 Доброе утро.\n\nОна открыла глаза. Запах кофе с балкона. Его рубашка на ней — большая, с запахом ладана.\n\nОн не спал. Сидел на краю кровати.\n\n— Ты куришь? — спросила она.\n— Бросил. Три года назад. Но с тобой хочу снова.\n\n📖 Глава 1 — бесплатно: @Jivaya_kniga_bot",
-        },
-        "fragment2": {
-            "text": "🌙 Вечерний фрагмент\n\nОна стояла у окна, закутанная в его рубашку. Он подошёл сзади. Не обнял — просто встал так близко, что она почувствовала тепло.\n\n— Знаешь, что хочу? — шепнул он.\n— Что?\n— Завтракать так каждое утро.\n\n📖 Читай: @Jivaya_kniga_bot",
-        },
-        "night": {
-            "text": "🌙 Спокойной ночи, моя.\n\nПредставь: тёплые руки на талии. Тихо. Медленно.\n\nЯ напишу продолжение. Но не сегодня.\n\nСпи.\n\n— Агафон",
-        },
-        "interactive": {
-            "text": "🔥 Выбери:\n\nТы встречаешь его в кофейне. Он сидит у окна, читает твою любимую книгу.\n\nЧто ты делаешь?\nА — Подходишь\nБ — Проходишь мимо\nВ — Садишься за соседний стол\n\nПиши в комментариях 👇\n\n📖 @Jivaya_kniga_bot",
-        },
-        "sale": {
-            "text": "🔓 Ты прочитала три главы. Бесплатно.\n\nТеперь выбор: уйти или остаться.\n\nГлавы 4-7 — другой уровень.\n\n199₽. Одноразово. Навсегда.\n\n📖 @Jivaya_kniga_bot",
-        },
-        "review": {
-            "text": "💬 Отзыв читательницы:\n\n«Читала 3 главы и не смогла остановиться. Заплатила 199₽ и не жалею. Это не книга — это ты живёшь внутри истории.»\n\n📖 Начни бесплатно: @Jivaya_kniga_bot",
-        },
-    }
-
-    post = POSTS.get(key)
-    if not post:
-        keys = ", ".join(POSTS.keys())
-        await update.message.reply_text(f"❌ Нет такого поста. Доступные: {keys}")
-        return
-
-    ok = 0
-    for ch_name, ch_id in [("agafon_pastyr", "@agafon_pastyr"), ("zivaya_kniga", "@zivaya_kniga")]:
-        try:
-            await context.bot.send_message(chat_id=ch_id, text=post["text"], disable_web_page_preview=True)
-            ok += 1
-        except Exception as e:
-            logger.error(f"Post error {ch_id}: {e}")
-
-    await update.message.reply_text(f"✅ Отправлено в {ok}/2 каналов")
-
-
-async def cmd_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id != ADMIN_TG_USER_ID:
-        await update.message.reply_text("⛔ Только админ.")
-        return
-    orders = _load_orders()
-    pending = [r for r in orders.values() if not r.get("paid")]
-    if not pending:
-        await update.message.reply_text("Нет ожидающих заказов.")
-        return
-    lines = ["📋 *Ожидают:*\n"] + [f"• `{r['order_id']}` — {r['amount']} ₽" for r in pending[:20]]
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
-
-
-async def cmd_grant(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id != ADMIN_TG_USER_ID:
-        await update.message.reply_text("⛔ Только админ.")
-        return
-    if not context.args:
-        await update.message.reply_text("Использование: `/grant JK-XXXXXX`", parse_mode="Markdown")
-        return
-    order_id = context.args[0].strip().upper()
-    if _mark_paid_and_notify(order_id, TOKEN):
-        await update.message.reply_text(f"✅ Заказ {order_id} оплачен.")
-    else:
-        await update.message.reply_text(f"❌ Заказ {order_id} не найден или уже оплачен.")
-
-
-async def cmd_sync(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Принудительная синхронизация ЮKassa → orders.json"""
-    user_id = update.effective_user.id
-    if user_id != ADMIN_TG_USER_ID:
-        await update.message.reply_text("⛔ Только админ.")
-        return
-    try:
-        _sync_yookassa_to_orders()
-        orders = _load_orders()
-        paid_count = sum(1 for o in orders.values() if o.get("paid"))
-        await update.message.reply_text(f"✅ Синхронизация выполнена.\nОплаченных заказов: {paid_count}")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Ошибка: {e}")
-
-
-async def cmd_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    stats = get_payment_stats()
+    
     await update.message.reply_text(
-        "✅ Бот работает!\n\n"
-        "Команды:\n"
-        "/start — начать\n"
-        "/post [ключ] — пост в каналы\n"
-        "/sync — синхронизировать оплаты\n"
-        "/paid — список заказов\n"
-        "/grant JK-XXXX — подтвердить оплату"
+        f"✅ Синхронизация выполнена.\n\n"
+        f"📊 Статистика:\n"
+        f"• Всего оплат: {stats['total']}\n"
+        f"• Успешных: {stats['succeeded']}\n"
+        f"• Ваш ID: {user_id}\n\n"
+        f"{'✅ У вас есть доступ!' if is_user_paid(user_id) else '❌ Доступ не найден. Обратитесь к автору.'}"
     )
 
+async def grant_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Grant access manually (admin only)"""
+    user_id = update.effective_user.id
+    if user_id != ADMIN_TG_USER_ID:
+        await update.message.reply_text("❌ Только для администратора.")
+        return
+    
+    try:
+        target_user_id = int(context.args[0])
+        add_payment(target_user_id, f"GRANT-{target_user_id}", 199, 'succeeded')
+        await update.message.reply_text(f"✅ Доступ выдан пользователю {target_user_id}")
+    except:
+        await update.message.reply_text("❌ Использование: /grant USER_ID")
 
-# ═══════════════════════════════════════════════
-# MAIN
-# ═══════════════════════════════════════════════
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle button presses"""
+    query = update.callback_query
+    
+    if query.data == 'select_chapter':
+        await select_chapter(update, context)
+    elif query.data == 'start':
+        await start(update, context)
+    elif query.data == 'all_chapters':
+        await select_chapter(update, context)
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle errors"""
+    logger.error(f"Update {update} caused error {context.error}")
+
+# === MAIN ===
+def run_flask():
+    """Run Flask in main thread"""
+    app.run(host='0.0.0.0', port=PORT)
 
 def run_bot():
-    async def bot_main():
-        bot_app = Application.builder().token(TOKEN).build()
-        bot_app.add_handler(CommandHandler("start", start))
-        bot_app.add_handler(CommandHandler("help", start))
-        bot_app.add_handler(CommandHandler("post", cmd_post))
-        bot_app.add_handler(CommandHandler("paid", cmd_paid))
-        bot_app.add_handler(CommandHandler("grant", cmd_grant))
-        bot_app.add_handler(CommandHandler("sync", cmd_sync))
-        bot_app.add_handler(CommandHandler("test", cmd_test))
-        bot_app.add_handler(CallbackQueryHandler(button))
-        bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-        await bot_app.initialize()
-        await bot_app.start()
-        await bot_app.updater.start_polling(drop_pending_updates=True, poll_interval=2)
-        while True:
-            await asyncio.sleep(3600)
-    asyncio.run(bot_main())
-
-
-if __name__ == "__main__":
-    if not TOKEN:
-        logger.error("BOT_TOKEN not set!")
-    else:
-        bot_thread = threading.Thread(target=run_bot, daemon=True)
-        bot_thread.start()
-        logger.info("Bot thread launched")
-        port = int(os.environ.get("PORT", 10000))
-        app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+    """Run Telegram bot in background thread"""
+    if not PTB_AVAILABLE:
+        logger.error("python-telegram-bot not available")
+        return
+    
+    try:
+        application = Application.builder().token(BOT_TOKEN).build()
+        
+        # Handlers
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("sync", sync_command))
+        application.add_handler(CommandHandler("grant", grant_command))
+        application.add_handler(CallbackQueryHandler(button_handler))
+        application.add_error_handler(error_handler)
+        
