@@ -1,167 +1,155 @@
 """
-Интеграция с ЮKassa API v3
-Создание платежей, проверка статуса, webhook
+ЮKassa API Integration v2.1
+Supabase PostgreSQL support
 """
-import os, uuid, requests, json
 
-# ═══════════════════════════════════════════════════════════════
-# ⚠️  ВСТАВЬТЕ СВОИ ДАННЫЕ ИЗ ЛИЧНОГО КАБИНЕТА ЮKASSA
-#    ЛК → Интеграция → Ключи API
-# ═══════════════════════════════════════════════════════════════
-YOOKASSA_SHOP_ID = os.environ.get('YOOKASSA_SHOP_ID', '').strip()
-YOOKASSA_SECRET_KEY = os.environ.get('YOOKASSA_SECRET_KEY', '').strip()
-YOOKASSA_TEST_MODE = os.environ.get('YOOKASSA_TEST_MODE', '').strip().lower() == 'true'
-# ⚠️  TEST_MODE=true + боевые ключи = invalid_credentials от ЮKassa
+import os
+import json
+import hashlib
+import uuid
+import logging
+from datetime import datetime
+import requests
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-BASE_URL = 'https://api.yookassa.ru/v3/'
+logger = logging.getLogger(__name__)
 
-# Хранилище платежей (в памяти — для Render free tier)
-# В проде: Redis или БД
-_payments = {}
+# === CONFIG ===
+SHOP_ID = os.environ.get('YOOKASSA_SHOP_ID', '')
+SECRET_KEY = os.environ.get('YOOKASSA_SECRET_KEY', '')
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
-def _auth():
-    """Basic auth для ЮKassa"""
-    return (YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY)
+# === DATABASE ===
+def get_db_connection():
+    if not DATABASE_URL:
+        return None
+    try:
+        return psycopg2.connect(DATABASE_URL, sslmode='require')
+    except Exception as e:
+        logger.error(f"DB error: {e}")
+        return None
 
-def _headers(idempotence_key=None):
-    """Заголовки запроса"""
-    if not idempotence_key:
-        idempotence_key = str(uuid.uuid4())
-    return {
-        'Content-Type': 'application/json',
-        'Idempotence-Key': idempotence_key,
-    }
-
-def create_payment(amount=199, description='Живая Книга — Полный доступ', 
-                   return_url=None, metadata=None):
-    """
-    Создать платёж в ЮKassa.
-    Возвращает: {payment_id, confirmation_url, status}
-    """
-    if YOOKASSA_SHOP_ID == 'ВАШ_SHOP_ID':
-        return {'error': 'YOOKASSA_SHOP_ID не настроен'}
-    
-    payload = {
-        'amount': {
-            'value': f'{amount:.2f}',
-            'currency': 'RUB'
-        },
-        'capture': True,
-        'confirmation': {
-            'type': 'redirect',
-            'return_url': return_url or 'https://kt7ussahgizfm.kimi.page/success.html'
-        },
-        'description': description,
-        'metadata': metadata or {},
-    }
-    # test mode только если явно включён
-    if YOOKASSA_TEST_MODE:
-        payload['test'] = True
+def save_payment(user_id, order_id, amount, status='pending'):
+    """Save payment to database"""
+    conn = get_db_connection()
+    if not conn:
+        return False
     
     try:
-        resp = requests.post(
-            f'{BASE_URL}payments',
-            auth=_auth(),
-            headers=_headers(),
-            json=payload,
-            timeout=30
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        
-        payment_id = data['id']
-        confirmation_url = data['confirmation'].get('confirmation_url', '')
-        status = data['status']
-        
-        # Сохраняем
-        _payments[payment_id] = {
-            'id': payment_id,
-            'status': status,
-            'amount': amount,
-            'created_at': data.get('created_at', ''),
-            'metadata': metadata or {},
-            'paid': status == 'succeeded',
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO payments (user_id, order_id, amount, status, updated_at)
+                VALUES (%s, %s, %s, %s, NOW())
+                ON CONFLICT (user_id) DO UPDATE SET
+                    order_id = EXCLUDED.order_id,
+                    amount = EXCLUDED.amount,
+                    status = EXCLUDED.status,
+                    updated_at = NOW()
+            """, (user_id, order_id, amount, status))
+            conn.commit()
+            return True
+    except Exception as e:
+        logger.error(f"Save payment error: {e}")
+        return False
+    finally:
+        conn.close()
+
+def create_payment(amount, user_id, description="Живая Книга - доступ к главам 4-7"):
+    """Create payment via ЮKassa API"""
+    if not SHOP_ID or not SECRET_KEY:
+        logger.error("YOOKASSA credentials not configured")
+        return None
+    
+    idempotence_key = str(uuid.uuid4())
+    
+    headers = {
+        'Idempotence-Key': idempotence_key,
+        'Content-Type': 'application/json',
+    }
+    
+    auth = (SHOP_ID, SECRET_KEY)
+    
+    data = {
+        "amount": {
+            "value": str(amount),
+            "currency": "RUB"
+        },
+        "capture": True,
+        "confirmation": {
+            "type": "redirect",
+            "return_url": "https://kt7ussahgizfm.kimi.page/success.html"
+        },
+        "description": description,
+        "metadata": {
+            "user_id": str(user_id)
         }
+    }
+    
+    try:
+        response = requests.post(
+            'https://api.yookassa.ru/v3/payments',
+            json=data,
+            headers=headers,
+            auth=auth
+        )
+        response.raise_for_status()
+        result = response.json()
+        
+        # Save pending payment
+        save_payment(user_id, result['id'], amount, 'pending')
         
         return {
-            'payment_id': payment_id,
-            'confirmation_url': confirmation_url,
-            'status': status,
-            'paid': False,
+            'payment_id': result['id'],
+            'confirmation_url': result['confirmation']['confirmation_url']
         }
-        
-    except requests.exceptions.HTTPError as e:
-        try:
-            err = e.response.json()
-            return {'error': err.get('description', str(e))}
-        except:
-            return {'error': str(e)}
     except Exception as e:
-        return {'error': str(e)}
+        logger.error(f"Create payment error: {e}")
+        return None
 
 def check_payment(payment_id):
-    """
-    Проверить статус платежа.
-    Возвращает: {status, paid}
-    """
-    if payment_id in _payments:
-        cached = _payments[payment_id]
-        if cached['paid']:
-            return {'status': cached['status'], 'paid': True}
-    
-    if YOOKASSA_SHOP_ID == 'ВАШ_SHOP_ID':
-        return {'error': 'YOOKASSA_SHOP_ID не настроен'}
+    """Check payment status"""
+    if not SHOP_ID or not SECRET_KEY:
+        return None
     
     try:
-        resp = requests.get(
-            f'{BASE_URL}payments/{payment_id}',
-            auth=_auth(),
-            timeout=30
+        response = requests.get(
+            f'https://api.yookassa.ru/v3/payments/{payment_id}',
+            auth=(SHOP_ID, SECRET_KEY)
         )
-        resp.raise_for_status()
-        data = resp.json()
+        response.raise_for_status()
+        result = response.json()
         
-        status = data['status']
-        paid = status == 'succeeded'
+        # Update status in DB
+        if result.get('metadata', {}).get('user_id'):
+            user_id = int(result['metadata']['user_id'])
+            status = result.get('status', 'pending')
+            amount = int(float(result['amount']['value']))
+            save_payment(user_id, payment_id, amount, status)
         
-        _payments[payment_id] = {
-            'id': payment_id,
-            'status': status,
-            'paid': paid,
-            'metadata': data.get('metadata', {}),
+        return {
+            'status': result.get('status'),
+            'paid': result.get('paid', False),
+            'amount': result.get('amount', {}).get('value')
         }
-        
-        return {'status': status, 'paid': paid}
-        
     except Exception as e:
-        return {'error': str(e)}
+        logger.error(f"Check payment error: {e}")
+        return None
 
-def handle_webhook(data):
-    """
-    Обработать webhook от ЮKassa.
-    Возвращает True если обработка успешна.
-    """
+def process_webhook(data):
+    """Process webhook from ЮKassa"""
     try:
-        event = data.get('event', '')
-        payment_obj = data.get('object', {})
-        payment_id = payment_obj.get('id', '')
-        status = payment_obj.get('status', '')
-        paid = status == 'succeeded'
+        payment_id = data.get('object', {}).get('id')
+        status = data.get('object', {}).get('status')
+        user_id = data.get('object', {}).get('metadata', {}).get('user_id')
         
-        _payments[payment_id] = {
-            'id': payment_id,
-            'status': status,
-            'paid': paid,
-            'metadata': payment_obj.get('metadata', {}),
-        }
-        
-        print(f"[YOOKASSA WEBHOOK] {event}: payment={payment_id} status={status}")
-        return True
-        
+        if user_id and payment_id:
+            user_id = int(user_id)
+            amount = int(float(data['object']['amount']['value']))
+            save_payment(user_id, payment_id, amount, status)
+            logger.info(f"Webhook processed: user={user_id}, status={status}")
+            return True
     except Exception as e:
-        print(f"[YOOKASSA WEBHOOK ERROR] {e}")
-        return False
-
-def get_payments():
-    """Список всех платежей для синхронизации с orders"""
-    return list(_payments.values())
+        logger.error(f"Webhook error: {e}")
+    
+    return False
