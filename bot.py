@@ -1,16 +1,27 @@
-import os, json, threading, logging
+"""
+Живая Книга — Telegram Bot + Flask
+Версия: 2.1 (Supabase PostgreSQL)
+Дата: 2026-06-04
+"""
+
+import os
+import json
+import threading
+import logging
 from flask import Flask, request, jsonify
 import psycopg2
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# === CONFIG ===
 BOT_TOKEN = os.environ.get('BOT_TOKEN', '8712024124:AAF_Ze10P7gd9rQktUX09PKYuqsalLnGNWs')
 PORT = int(os.environ.get('PORT', 10000))
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 app = Flask(__name__)
 
+# === DATABASE ===
 def get_db():
     if not DATABASE_URL:
         return None
@@ -26,7 +37,15 @@ def init_db():
         return False
     try:
         c = conn.cursor()
-        c.execute("CREATE TABLE IF NOT EXISTS payments (user_id BIGINT PRIMARY KEY, order_id TEXT, amount INTEGER, status TEXT DEFAULT 'pending', created_at TIMESTAMP DEFAULT NOW())")
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS payments (
+                user_id BIGINT PRIMARY KEY,
+                order_id TEXT,
+                amount INTEGER,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
         conn.commit()
         return True
     except Exception as e:
@@ -62,7 +81,14 @@ def add_payment(user_id, order_id, amount, status='succeeded'):
         return False
     try:
         c = conn.cursor()
-        c.execute("INSERT INTO payments (user_id, order_id, amount, status) VALUES (%s,%s,%s,%s) ON CONFLICT (user_id) DO UPDATE SET order_id=EXCLUDED.order_id, amount=EXCLUDED.amount, status=EXCLUDED.status", (user_id, order_id, amount, status))
+        c.execute("""
+            INSERT INTO payments (user_id, order_id, amount, status)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET
+                order_id = EXCLUDED.order_id,
+                amount = EXCLUDED.amount,
+                status = EXCLUDED.status
+        """, (user_id, order_id, amount, status))
         conn.commit()
         return True
     except Exception as e:
@@ -71,6 +97,7 @@ def add_payment(user_id, order_id, amount, status='succeeded'):
     finally:
         conn.close()
 
+# === FLASK ===
 @app.route('/')
 def health():
     db_ok = get_db() is not None
@@ -91,7 +118,7 @@ def detailed():
             conn.close()
     return jsonify({"status": "ok", "payments": total})
 
-# Telegram
+# === TELEGRAM ===
 try:
     from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
     from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
@@ -103,7 +130,7 @@ except:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     paid = is_paid(uid)
-    text = "📖 *Живая Книга*\n\n3 главы бесплатно. Главы 4–7 — 199₽ навсегда."
+    text = "📖 *Живая Книга*\n\nИнтерактивные истории, где каждый выбор меняет всё.\n\n3 главы бесплатно. Главы 4–7 — 199₽ навсегда."
     if paid:
         text += "\n\n✅ *У вас открыт доступ ко всем главам!*"
     kb = [
