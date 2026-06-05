@@ -1,27 +1,19 @@
-"""
-Живая Книга — Telegram Bot + Flask
-Версия: 2.1 (Supabase PostgreSQL)
-Дата: 2026-06-04
-"""
-
 import os
 import json
 import threading
 import logging
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify
 import psycopg2
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# === CONFIG ===
 BOT_TOKEN = os.environ.get('BOT_TOKEN', '8712024124:AAF_Ze10P7gd9rQktUX09PKYuqsalLnGNWs')
 PORT = int(os.environ.get('PORT', 10000))
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 app = Flask(__name__)
 
-# === DATABASE ===
 def get_db():
     if not DATABASE_URL:
         return None
@@ -37,15 +29,7 @@ def init_db():
         return False
     try:
         c = conn.cursor()
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS payments (
-                user_id BIGINT PRIMARY KEY,
-                order_id TEXT,
-                amount INTEGER,
-                status TEXT DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
+        c.execute("CREATE TABLE IF NOT EXISTS payments (user_id BIGINT PRIMARY KEY, order_id TEXT, amount INTEGER, status TEXT DEFAULT 'pending', created_at TIMESTAMP DEFAULT NOW())")
         conn.commit()
         return True
     except Exception as e:
@@ -75,29 +59,6 @@ def is_paid(user_id):
     finally:
         conn.close()
 
-def add_payment(user_id, order_id, amount, status='succeeded'):
-    conn = get_db()
-    if not conn:
-        return False
-    try:
-        c = conn.cursor()
-        c.execute("""
-            INSERT INTO payments (user_id, order_id, amount, status)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (user_id) DO UPDATE SET
-                order_id = EXCLUDED.order_id,
-                amount = EXCLUDED.amount,
-                status = EXCLUDED.status
-        """, (user_id, order_id, amount, status))
-        conn.commit()
-        return True
-    except Exception as e:
-        logger.error(f"Add error: {e}")
-        return False
-    finally:
-        conn.close()
-
-# === FLASK ===
 @app.route('/')
 def health():
     db_ok = get_db() is not None
@@ -118,7 +79,6 @@ def detailed():
             conn.close()
     return jsonify({"status": "ok", "payments": total})
 
-# === TELEGRAM ===
 try:
     from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
     from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
@@ -127,10 +87,10 @@ except:
     PTB = False
     logger.warning("PTB not available")
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update, context):
     uid = update.effective_user.id
     paid = is_paid(uid)
-    text = "📖 *Живая Книга*\n\nИнтерактивные истории, где каждый выбор меняет всё.\n\n3 главы бесплатно. Главы 4–7 — 199₽ навсегда."
+    text = "📖 *Живая Книга*\n\n3 главы бесплатно. Главы 4–7 — 199₽ навсегда."
     if paid:
         text += "\n\n✅ *У вас открыт доступ ко всем главам!*"
     kb = [
@@ -141,7 +101,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kb.insert(0, [InlineKeyboardButton("✅ Все главы открыты", callback_data='chapters')])
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode='Markdown')
 
-async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def chapters(update, context):
     q = update.callback_query
     uid = q.from_user.id
     paid = is_paid(uid)
@@ -168,7 +128,7 @@ async def chapters(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb.append([InlineKeyboardButton("« Назад", callback_data='start')])
     await q.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode='Markdown')
 
-async def sync_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def sync_cmd(update, context):
     conn = get_db()
     total = 0
     if conn:
@@ -182,7 +142,7 @@ async def sync_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.close()
     await update.message.reply_text(f"✅ Синхронизация выполнена.\n\n📊 Оплаченных заказов в Supabase: {total}\n\n💡 Новые оплаты сохраняются в Supabase и не пропадут!")
 
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def button(update, context):
     q = update.callback_query
     if q.data == 'chapters':
         await chapters(update, context)
